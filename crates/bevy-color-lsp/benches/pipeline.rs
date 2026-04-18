@@ -54,14 +54,14 @@ fn synth_source_suffixed(num_fns: usize) -> String {
     s.push_str("use bevy::prelude::*;\n\n");
     for i in 0..num_fns {
         s.push_str(&format!(
-            r#"fn f{i}() {{
+            r"fn f{i}() {{
     let a = Color::srgb(0.{}f32, 0.5f32, 0.25f32);
     let b = Color::hsla(180.0f32, 0.5f32, 0.5f32, 1.0f32);
     let c = Color::srgb_u8(200u8, 100u8, 50u8);
     let _ = (a, b, c);
 }}
 
-"#,
+",
             i % 10
         ));
     }
@@ -272,7 +272,7 @@ fn synth_source_palette_heavy(num_fns: usize) -> String {
     s.push_str("use bevy::prelude::*;\nuse bevy_color::palettes;\n\n");
     for i in 0..num_fns {
         s.push_str(&format!(
-            r#"fn f{i}() {{
+            r"fn f{i}() {{
     let a = Color::WHITE;
     let b = Color::BLACK;
     let c = palettes::css::TOMATO;
@@ -282,7 +282,7 @@ fn synth_source_palette_heavy(num_fns: usize) -> String {
     let _ = (a, b, c, d, e, f);
 }}
 
-"#
+"
         ));
     }
     s
@@ -296,12 +296,12 @@ fn synth_source_no_color(num_fns: usize) -> String {
     s.push_str("use bevy::prelude::*;\n\n");
     for i in 0..num_fns {
         s.push_str(&format!(
-            r#"fn f{i}() {{
+            r"fn f{i}() {{
     let x = {i};
     let y = {i} * 2;
 }}
 
-"#
+"
         ));
     }
     s
@@ -315,7 +315,7 @@ fn synth_source_multibyte(num_fns: usize) -> String {
     s.push_str("use bevy::prelude::*;\nuse bevy_color::palettes;\n\n");
     for i in 0..num_fns {
         s.push_str(&format!(
-            r#"// 颜色 palette 🎨 function {i}
+            r"// 颜色 palette 🎨 function {i}
 fn f{i}() {{
     // 🎨 set color 颜色
     let a = Color::srgb(0.{}, 0.5, 0.25);
@@ -323,7 +323,7 @@ fn f{i}() {{
     let _ = (a, b);
 }}
 
-"#,
+",
             i % 10
         ));
     }
@@ -386,9 +386,9 @@ fn bench_position_conversions(c: &mut Criterion) {
 // as order-of-magnitude indicators, not precise latency numbers.
 // ---------------------------------------------------------------------------
 fn bench_concurrent_store(c: &mut Criterion) {
-    let mut group = c.benchmark_group("concurrent_store");
     const OPS_PER_THREAD: usize = 100;
 
+    let mut group = c.benchmark_group("concurrent_store");
     let src = synth_source(50);
     let uri = Arc::new(Url::parse("file:///bench_concurrent.rs").unwrap());
 
@@ -529,9 +529,9 @@ fn bench_utf8_multibyte(c: &mut Criterion) {
 // followed by colors_for. Simulates a realistic editing session.
 // ---------------------------------------------------------------------------
 fn bench_lsp_cycle_loop(c: &mut Criterion) {
-    let mut group = c.benchmark_group("lsp_cycle_loop");
     const KEYSTROKES: usize = 50;
 
+    let mut group = c.benchmark_group("lsp_cycle_loop");
     let src = synth_source(200);
     let uri = Url::parse("file:///bench_cycle.rs").unwrap();
     let mid_line = (src.matches('\n').count() / 2) as u32;
