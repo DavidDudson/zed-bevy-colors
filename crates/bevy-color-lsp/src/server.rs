@@ -1,8 +1,10 @@
 use crate::document::DocumentStore;
+use crate::num::f32_to_u8_clamped;
 use std::sync::Arc;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tracing::instrument;
 
 #[derive(Debug)]
 pub struct Backend {
@@ -18,6 +20,7 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
+    #[instrument(skip(self), err)]
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -34,18 +37,22 @@ impl LanguageServer for Backend {
         })
     }
 
+    #[instrument(skip(self))]
     async fn initialized(&self, _: InitializedParams) {
         self.client.log_message(MessageType::INFO, "bevy-color-lsp ready").await;
     }
 
+    #[instrument(skip(self), err)]
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(skip_all, fields(uri = %params.text_document.uri))]
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.docs.open(params.text_document.uri, params.text_document.text);
     }
 
+    #[instrument(skip_all, fields(uri = %params.text_document.uri))]
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
         for change in params.content_changes {
@@ -56,10 +63,12 @@ impl LanguageServer for Backend {
         }
     }
 
+    #[instrument(skip_all, fields(uri = %params.text_document.uri))]
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.docs.close(&params.text_document.uri);
     }
 
+    #[instrument(skip_all, fields(uri = %params.text_document.uri), err)]
     async fn document_color(&self, params: DocumentColorParams) -> Result<Vec<ColorInformation>> {
         Ok(self
             .docs
@@ -77,14 +86,15 @@ impl LanguageServer for Backend {
             .collect())
     }
 
+    #[instrument(skip_all, err)]
     async fn color_presentation(
         &self,
         params: ColorPresentationParams,
     ) -> Result<Vec<ColorPresentation>> {
         let c = params.color;
-        let r = (c.red * 255.0).round() as u8;
-        let g = (c.green * 255.0).round() as u8;
-        let b = (c.blue * 255.0).round() as u8;
+        let r = f32_to_u8_clamped(c.red * 255.0);
+        let g = f32_to_u8_clamped(c.green * 255.0);
+        let b = f32_to_u8_clamped(c.blue * 255.0);
         let label = if c.alpha < 1.0 {
             format!("Color::srgba({:.3}, {:.3}, {:.3}, {:.3})", c.red, c.green, c.blue, c.alpha)
         } else {

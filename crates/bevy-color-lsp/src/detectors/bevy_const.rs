@@ -1,5 +1,6 @@
 use crate::color::Rgba;
 use crate::detectors::ColorMatch;
+use crate::num::u32_to_usize;
 use crate::palette::lookup_named;
 use std::ops::Range;
 use std::sync::LazyLock;
@@ -13,6 +14,9 @@ const QUERY_SRC: &str = r#"
   (#match? @name "^[A-Z][A-Z0-9_]*$")) @full
 "#;
 
+// `QUERY_SRC` is a `const &str`; `Query::new` only errors on a syntax
+// bug in the source, which the unit tests would catch immediately. A
+// failure here is a build-time authoring bug.
 #[allow(clippy::expect_used)]
 static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_const query")
@@ -37,7 +41,7 @@ pub fn detect(
         let mut full_start = 0;
         let mut full_end = 0;
         for cap in m.captures {
-            let cap_name = &QUERY.capture_names()[cap.index as usize];
+            let cap_name = &QUERY.capture_names()[u32_to_usize(cap.index)];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
             match *cap_name {
                 "type" => ty = text,

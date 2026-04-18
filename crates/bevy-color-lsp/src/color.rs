@@ -1,3 +1,5 @@
+use crate::num::f32_to_u32_floor_clamped;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rgba {
     pub r: f32,
@@ -16,7 +18,12 @@ impl Rgba {
     pub const NONE: Self = Self::new(0.0, 0.0, 0.0, 0.0);
 
     pub fn from_u8(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0)
+        Self::new(
+            f32::from(r) / 255.0,
+            f32::from(g) / 255.0,
+            f32::from(b) / 255.0,
+            f32::from(a) / 255.0,
+        )
     }
 
     pub fn from_linear(r: f32, g: f32, b: f32, a: f32) -> Self {
@@ -112,7 +119,7 @@ pub fn hsv_to_rgb(h: f32, s: f32, v: f32, a: f32) -> Rgba {
     let c = v * s;
     let hp = h / 60.0;
     let x = c * (1.0 - (hp % 2.0 - 1.0).abs());
-    let (r1, g1, b1) = match hp as u32 {
+    let (r1, g1, b1) = match f32_to_u32_floor_clamped(hp, 6) {
         0 => (c, x, 0.0),
         1 => (x, c, 0.0),
         2 => (0.0, c, x),

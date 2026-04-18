@@ -1,7 +1,9 @@
 use crate::detectors::{detect_all, detect_in_range, ColorMatch};
+use crate::error::{Error, Result};
+use crate::num::{u32_to_usize, usize_to_u32_sat};
 use crate::parser::parse_incremental;
+use parking_lot::Mutex;
 use std::collections::HashMap;
-use std::sync::Mutex;
 use tower_lsp::lsp_types::{Position, Range, Url};
 use tree_sitter::{InputEdit, Point, Tree};
 
@@ -38,7 +40,7 @@ impl Document {
         let start_byte = position_to_byte(&self.text, &self.line_starts, range.start);
         let old_end_byte = position_to_byte(&self.text, &self.line_starts, range.end);
         let new_end_byte = start_byte + new_text.len();
-        let delta = new_end_byte as isize - old_end_byte as isize;
+        let delta: isize = new_end_byte.cast_signed() - old_end_byte.cast_signed();
 
         let start_position = lsp_to_point(range.start);
         let old_end_position = lsp_to_point(range.end);
@@ -61,7 +63,7 @@ impl Document {
         let old_cache = self.cache.take();
         self.tree = parse_incremental(&self.text, self.tree.as_ref());
         if let (Some(tree), Some(old)) = (self.tree.as_ref(), old_cache) {
-            self.cache = Some(incremental_color_update(
+            match incremental_color_update(
                 &self.text,
                 tree,
                 old,
@@ -69,7 +71,13 @@ impl Document {
                 old_end_byte,
                 new_end_byte,
                 delta,
-            ));
+            ) {
+                Ok(updated) => self.cache = Some(updated),
+                Err(err) => {
+                    tracing::warn!(error = %err, "incremental update failed; cache invalidated");
+                    self.cache = None;
+                }
+            }
         }
     }
 
@@ -104,7 +112,7 @@ fn incremental_color_update(
     edit_old_end: usize,
     edit_new_end: usize,
     delta: isize,
-) -> Vec<(Range, ColorMatch)> {
+) -> Result<Vec<(Range, ColorMatch)>> {
     let rescan_start = edit_start.saturating_sub(RESCAN_CONTEXT);
     let rescan_end = (edit_new_end + RESCAN_CONTEXT).min(text.len());
 
@@ -113,8 +121,8 @@ fn incremental_color_update(
         if m.end_byte <= edit_start {
             kept.push(m);
         } else if m.start_byte >= edit_old_end {
-            let new_start = (m.start_byte as isize + delta) as usize;
-            let new_end = (m.end_byte as isize + delta) as usize;
+            let new_start = m.start_byte.checked_add_signed(delta).ok_or(Error::OffsetOverflow)?;
+            let new_end = m.end_byte.checked_add_signed(delta).ok_or(Error::OffsetOverflow)?;
             kept.push(ColorMatch { start_byte: new_start, end_byte: new_end, color: m.color });
         }
     }
@@ -126,7 +134,7 @@ fn incremental_color_update(
     kept.dedup_by_key(|m| (m.start_byte, m.end_byte));
 
     let ranges = byte_ranges_to_lsp(text, &kept);
-    kept.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect()
+    Ok(kept.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect())
 }
 
 fn compute_line_starts(text: &str) -> Vec<usize> {
@@ -140,7 +148,7 @@ fn compute_line_starts(text: &str) -> Vec<usize> {
 }
 
 fn lsp_to_point(p: Position) -> Point {
-    Point { row: p.line as usize, column: p.character as usize }
+    Point { row: u32_to_usize(p.line), column: u32_to_usize(p.character) }
 }
 
 fn byte_to_point(text: &str, byte: usize) -> Point {
@@ -163,7 +171,7 @@ fn byte_to_point(text: &str, byte: usize) -> Point {
 }
 
 pub fn position_to_byte(text: &str, line_starts: &[usize], pos: Position) -> usize {
-    let line = pos.line as usize;
+    let line = u32_to_usize(pos.line);
     if line >= line_starts.len() {
         return text.len();
     }
@@ -178,7 +186,7 @@ pub fn position_to_byte(text: &str, line_starts: &[usize], pos: Position) -> usi
         if col_utf16 >= pos.character {
             break;
         }
-        col_utf16 += ch.len_utf16() as u32;
+        col_utf16 += usize_to_u32_sat(ch.len_utf16());
         byte_offset += ch.len_utf8();
     }
     line_start + byte_offset
@@ -218,7 +226,7 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
             line += 1;
             col_utf16 = 0;
         } else {
-            col_utf16 += ch.len_utf16() as u32;
+            col_utf16 += usize_to_u32_sat(ch.len_utf16());
         }
         idx += len;
     }
@@ -248,7 +256,7 @@ pub fn byte_to_position(text: &str, byte: usize) -> Position {
             line += 1;
             col_utf16 = 0;
         } else {
-            col_utf16 += ch.len_utf16() as u32;
+            col_utf16 += usize_to_u32_sat(ch.len_utf16());
         }
         idx += len;
     }
@@ -261,34 +269,28 @@ pub struct DocumentStore {
 }
 
 impl DocumentStore {
-    // TODO(Stream 3): remove once std::Mutex is swapped for parking_lot::Mutex.
-    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn open(&self, uri: Url, text: String) {
-        self.docs.lock().unwrap().insert(uri, Document::new(text));
+        self.docs.lock().insert(uri, Document::new(text));
     }
 
-    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn replace(&self, uri: &Url, text: String) {
-        if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
+        if let Some(doc) = self.docs.lock().get_mut(uri) {
             doc.set_text(text);
         }
     }
 
-    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn apply_change(&self, uri: &Url, range: Option<Range>, text: &str) {
-        if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
+        if let Some(doc) = self.docs.lock().get_mut(uri) {
             doc.apply_change(range, text);
         }
     }
 
-    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn close(&self, uri: &Url) {
-        self.docs.lock().unwrap().remove(uri);
+        self.docs.lock().remove(uri);
     }
 
-    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn colors_for(&self, uri: &Url) -> Vec<(Range, ColorMatch)> {
-        self.docs.lock().unwrap().get_mut(uri).map(|d| d.colors()).unwrap_or_default()
+        self.docs.lock().get_mut(uri).map(|d| d.colors()).unwrap_or_default()
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::color::{hsl_to_rgb, hsv_to_rgb, hwb_to_rgb, oklab_to_rgb, oklch_to_rgb, Rgba};
 use crate::detectors::ColorMatch;
+use crate::num::{f32_to_u8_clamped, u32_to_usize};
 use std::ops::Range;
 use std::sync::LazyLock;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
@@ -12,6 +13,9 @@ const QUERY_SRC: &str = r#"
   arguments: (arguments) @args) @call
 "#;
 
+// `QUERY_SRC` is a `const &str`; `Query::new` only errors on a syntax
+// bug in the source, which the unit tests would catch immediately. A
+// failure here is a build-time authoring bug.
 #[allow(clippy::expect_used)]
 static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_ctor query")
@@ -50,7 +54,7 @@ pub fn detect(
         let mut args: Option<Node<'_>> = None;
         let mut call: Option<Node<'_>> = None;
         for cap in m.captures {
-            let name = &QUERY.capture_names()[cap.index as usize];
+            let name = &QUERY.capture_names()[u32_to_usize(cap.index)];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
             match *name {
                 "type" => ty = text,
@@ -153,14 +157,17 @@ fn build_color(ty: &str, ctor: &str, n: &[f32]) -> Option<Rgba> {
                 Some(Rgba::new(r, g, b, a))
             }
         }
-        ("Color", "srgb_u8") | ("Srgba", "rgb_u8") => {
-            Some(Rgba::from_u8(get(0)? as u8, get(1)? as u8, get(2)? as u8, 255))
-        }
+        ("Color", "srgb_u8") | ("Srgba", "rgb_u8") => Some(Rgba::from_u8(
+            f32_to_u8_clamped(get(0)?),
+            f32_to_u8_clamped(get(1)?),
+            f32_to_u8_clamped(get(2)?),
+            255,
+        )),
         ("Color", "srgba_u8") | ("Srgba", "rgba_u8") => Some(Rgba::from_u8(
-            get(0)? as u8,
-            get(1)? as u8,
-            get(2)? as u8,
-            get(3).unwrap_or(255.0) as u8,
+            f32_to_u8_clamped(get(0)?),
+            f32_to_u8_clamped(get(1)?),
+            f32_to_u8_clamped(get(2)?),
+            f32_to_u8_clamped(get(3).unwrap_or(255.0)),
         )),
         ("Color", "hsl") | ("Hsla", "hsl") => Some(hsl_to_rgb(get(0)?, get(1)?, get(2)?, 1.0)),
         ("Color", "hsla") | ("Hsla", "new") => {
