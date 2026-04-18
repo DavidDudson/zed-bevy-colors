@@ -25,12 +25,22 @@
             rust
             cargo-criterion
             cargo-watch
+            cargo-deny
             just
+            lefthook
             release-plz
             git-cliff
+            typos
+            taplo
           ];
 
           RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
+
+          shellHook = ''
+            if [ -d .git ] && [ ! -f .git/hooks/pre-commit ]; then
+              ${pkgs.lefthook}/bin/lefthook install >/dev/null
+            fi
+          '';
         };
       });
 }

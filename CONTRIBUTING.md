@@ -48,6 +48,60 @@ target on first `cargo` invocation.
 
 ## Dev loop
 
+### Task runner
+
+Common commands are defined in `Justfile`:
+
+| Recipe | Action |
+|--------|--------|
+| `just` / `just check` | fmt-check + clippy + test (local fast path) |
+| `just fmt` | format all |
+| `just clippy` | default clippy, same as CI |
+| `just clippy-strict` | add pedantic + nursery + cargo groups |
+| `just test` | `cargo test --workspace` |
+| `just bench` | criterion benches |
+| `just wasm` | build Zed extension for `wasm32-wasip2` |
+| `just deny` | `cargo deny check` |
+| `just docs` | build rustdoc with `-D warnings` |
+| `just ci` | full gate (mirrors ci.yml + lint.yml) |
+| `just watch` | rerun clippy on file change |
+
+### Pre-commit hooks
+
+Configured via `lefthook.yml` — runs `cargo fmt --check`,
+`cargo clippy -D warnings`, and `typos` on staged Rust/text files, plus
+validates Conventional Commits format on `commit-msg`.
+
+First-time install (nix users: auto-runs from flake `shellHook`):
+
+```sh
+lefthook install
+```
+
+Skip once with `--no-verify` only for emergencies; fix the root cause
+and re-commit rather than routinely bypassing.
+
+### Lint strictness
+
+`Cargo.toml` declares workspace `[lints]`:
+
+- `clippy::all = deny` — correctness/suspicious/style lints block.
+- `clippy::{pedantic,nursery,cargo} = allow` at workspace level; opted
+  into by the `lint.yml` CI job only.
+- `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented` = warn,
+  promoted to deny in fast CI via `-D warnings`.
+
+New warnings must be fixed or justified with a narrowly scoped
+`#[allow(clippy::LINT)] // reason…`. `unsafe_code = forbid` —
+`unsafe` blocks are not permitted.
+
+MSRV is **1.87** (declared in `Cargo.toml` and `clippy.toml`). Bumping
+it is a breaking change for downstream packagers; discuss in a PR
+first.
+
+Supply-chain audit via `cargo deny check` (`deny.toml`) runs in
+`lint.yml`.
+
 Build the LSP server:
 
 ```sh
@@ -186,5 +240,8 @@ PR:
   registry submission flow.
 - Commit convention or branching strategy.
 - New required secret or repo setting.
+- `rustfmt.toml`, `clippy.toml`, `deny.toml`, `Justfile`,
+  `lefthook.yml`, `.github/workflows/lint.yml`.
+- Workspace lint config (`[workspace.lints]` in `Cargo.toml`) or MSRV.
 
 If a PR touches any of the above, update `CONTRIBUTING.md` too.

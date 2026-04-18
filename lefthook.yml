@@ -1,0 +1,18 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    clippy:
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    typos:
+      run: typos
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+' {1} \
+          || (echo "commit msg must follow Conventional Commits" && exit 1)
