@@ -55,3 +55,25 @@ jobs:
         with:
           components: rustfmt
       - run: cargo +nightly fmt --all -- --check
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # Excludes:
+      # - `palette.rs`: ~350 lines of css/tailwind lookup tables; covered
+      #   by dispatch smoke tests, per-entry tests are noise.
+      # - `zed-extension`: WASM shim exercised only via Zed runtime; no
+      #   `cargo test` path.
+      - run: |
+          cargo llvm-cov --workspace --lcov --output-path lcov.info \
+            --ignore-filename-regex 'palette\.rs|zed-extension'
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false

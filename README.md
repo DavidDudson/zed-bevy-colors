@@ -1,6 +1,7 @@
 # zed-bevy-color
 
 [![CI](https://github.com/DavidDudson/zed-bevy-colors/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidDudson/zed-bevy-colors/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/DavidDudson/zed-bevy-colors/graph/badge.svg)](https://codecov.io/gh/DavidDudson/zed-bevy-colors)
 [![Release](https://img.shields.io/github/v/release/DavidDudson/zed-bevy-colors?display_name=tag&sort=semver)](https://github.com/DavidDudson/zed-bevy-colors/releases)
 [![Zed extension](https://img.shields.io/badge/zed-extension-084CCF?logo=zedindustries&logoColor=white)](https://zed.dev/extensions?query=bevy-color)
 [![License](https://img.shields.io/github/license/DavidDudson/zed-bevy-colors)](LICENSE)

@@ -63,6 +63,8 @@ Common commands are defined in `Justfile`:
 | `just wasm` | build Zed extension for `wasm32-wasip2` |
 | `just deny` | `cargo deny check` |
 | `just docs` | build rustdoc with `-D warnings` |
+| `just coverage` | line/region coverage summary (skips data tables + WASM shim) |
+| `just coverage-lcov` | emit `lcov.info` for upload |
 | `just ci` | full gate (mirrors ci.yml + lint.yml) |
 | `just watch` | rerun clippy on file change |
 
@@ -101,6 +103,23 @@ first.
 
 Supply-chain audit via `cargo deny check` (`deny.toml`) runs in
 `lint.yml`.
+
+### Coverage
+
+`cargo llvm-cov` runs in `lint.yml` and uploads lcov data to
+[codecov.io](https://codecov.io/gh/DavidDudson/zed-bevy-colors). Two
+files are **intentionally excluded** from the coverage percentage:
+
+- `crates/bevy-color-lsp/src/palette.rs` — ~350 lines of CSS + Tailwind
+  lookup tables. Dispatch is smoke-tested; per-entry tests would be
+  noise.
+- `crates/zed-extension/` — WASM shim exercised only through Zed's
+  runtime; there is no `cargo test` path.
+
+Locally: `just coverage` (summary) or `just coverage-lcov`
+(`lcov.info` for upload). The nix devshell sets `LLVM_COV` and
+`LLVM_PROFDATA` so `cargo llvm-cov` works without a rustup
+`llvm-tools-preview` install.
 
 ### Documentation
 
