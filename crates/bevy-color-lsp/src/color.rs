@@ -1,22 +1,36 @@
+//! `Rgba` color type and color-space conversion helpers.
+
 use crate::num::f32_to_u32_floor_clamped;
 
+/// Linear sRGB color with a premultiplied-alpha channel, all components in `[0.0, 1.0]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rgba {
+    /// Red channel in `[0.0, 1.0]`.
     pub r: f32,
+    /// Green channel in `[0.0, 1.0]`.
     pub g: f32,
+    /// Blue channel in `[0.0, 1.0]`.
     pub b: f32,
+    /// Alpha channel in `[0.0, 1.0]`.
     pub a: f32,
 }
 
 impl Rgba {
+    /// Construct an `Rgba` from four `f32` components.
+    #[must_use]
     pub const fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }
 
+    /// Opaque white.
     pub const WHITE: Self = Self::new(1.0, 1.0, 1.0, 1.0);
+    /// Opaque black.
     pub const BLACK: Self = Self::new(0.0, 0.0, 0.0, 1.0);
+    /// Fully transparent black.
     pub const NONE: Self = Self::new(0.0, 0.0, 0.0, 0.0);
 
+    /// Construct from 8-bit unsigned channels (each divided by 255).
+    #[must_use]
     pub fn from_u8(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self::new(
             f32::from(r) / 255.0,
@@ -26,11 +40,15 @@ impl Rgba {
         )
     }
 
+    /// Construct from linear-light RGB components, applying the sRGB transfer curve.
+    #[must_use]
     pub fn from_linear(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self::new(linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b), a)
     }
 
-    pub fn clamped(self) -> Self {
+    /// Return a copy with all channels clamped to `[0.0, 1.0]`.
+    #[must_use]
+    pub const fn clamped(self) -> Self {
         Self::new(
             self.r.clamp(0.0, 1.0),
             self.g.clamp(0.0, 1.0),
@@ -52,6 +70,11 @@ fn linear_to_srgb(c: f32) -> f32 {
     }
 }
 
+/// Parse a hex color string, returning `None` on invalid input.
+///
+/// Accepts `#RGB`, `#RGBA`, `#RRGGBB`, and `#RRGGBBAA` (with or without
+/// the leading `#`). Returns `None` for any other length or non-hex digits.
+#[must_use]
 pub fn parse_hex(s: &str) -> Option<Rgba> {
     let s = s.trim_start_matches('#');
     let bytes: Vec<u8> = match s.len() {
@@ -76,6 +99,8 @@ pub fn parse_hex(s: &str) -> Option<Rgba> {
     }
 }
 
+/// Convert HSL to sRGB. `h` in degrees `[0, 360)`, `s` and `l` in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+#[must_use]
 pub fn hsl_to_rgb(h: f32, s: f32, l: f32, a: f32) -> Rgba {
     let h = ((h % 360.0) + 360.0) % 360.0 / 360.0;
     let s = s.clamp(0.0, 1.0);
@@ -112,6 +137,8 @@ fn hue_to_rgb(p: f32, q: f32, mut t: f32) -> f32 {
     p
 }
 
+/// Convert HSV to sRGB. `h` in degrees `[0, 360)`, `s` and `v` in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+#[must_use]
 pub fn hsv_to_rgb(h: f32, s: f32, v: f32, a: f32) -> Rgba {
     let h = ((h % 360.0) + 360.0) % 360.0;
     let s = s.clamp(0.0, 1.0);
@@ -131,6 +158,8 @@ pub fn hsv_to_rgb(h: f32, s: f32, v: f32, a: f32) -> Rgba {
     Rgba::new(r1 + m, g1 + m, b1 + m, a)
 }
 
+/// Convert HWB to sRGB. `h` in degrees `[0, 360)`, `w` and `b` (whiteness/blackness) in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+#[must_use]
 pub fn hwb_to_rgb(h: f32, w: f32, b: f32, a: f32) -> Rgba {
     let w = w.clamp(0.0, 1.0);
     let b = b.clamp(0.0, 1.0);
@@ -142,6 +171,8 @@ pub fn hwb_to_rgb(h: f32, w: f32, b: f32, a: f32) -> Rgba {
     Rgba::new(rgb.r * (1.0 - w - b) + w, rgb.g * (1.0 - w - b) + w, rgb.b * (1.0 - w - b) + w, a)
 }
 
+/// Convert Oklab to sRGB. `l` in `[0.0, 1.0]`, `a_chan` and `b_chan` roughly in `[-0.4, 0.4]`, `alpha` in `[0.0, 1.0]`.
+#[must_use]
 pub fn oklab_to_rgb(l: f32, a_chan: f32, b_chan: f32, alpha: f32) -> Rgba {
     let l_ = l + 0.396_337_78 * a_chan + 0.215_803_76 * b_chan;
     let m_ = l - 0.105_561_346 * a_chan - 0.063_854_17 * b_chan;
@@ -151,10 +182,12 @@ pub fn oklab_to_rgb(l: f32, a_chan: f32, b_chan: f32, alpha: f32) -> Rgba {
     let s3 = s_ * s_ * s_;
     let lr = 4.076_741_7 * l3 - 3.307_711_6 * m3 + 0.230_969_94 * s3;
     let lg = -1.268_438 * l3 + 2.609_757_4 * m3 - 0.341_319_38 * s3;
-    let lb = -0.0041960863 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3;
+    let lb = -0.004_196_086_3 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3;
     Rgba::from_linear(lr, lg, lb, alpha)
 }
 
+/// Convert Oklch to sRGB. `l` in `[0.0, 1.0]`, `c` (chroma) ≥ 0, `h` (hue) in degrees, `a` in `[0.0, 1.0]`.
+#[must_use]
 pub fn oklch_to_rgb(l: f32, c: f32, h: f32, a: f32) -> Rgba {
     let h_rad = h.to_radians();
     oklab_to_rgb(l, c * h_rad.cos(), c * h_rad.sin(), a)
@@ -166,7 +199,7 @@ mod tests {
     use super::*;
 
     fn approx(a: f32, b: f32) {
-        assert!((a - b).abs() < 0.01, "{} != {}", a, b);
+        assert!((a - b).abs() < 0.01, "{a} != {b}");
     }
 
     #[test]
@@ -181,9 +214,11 @@ mod tests {
     #[test]
     fn hex_three() {
         let c = parse_hex("#abc").unwrap();
-        approx(c.r, 0xaa as f32 / 255.0);
-        approx(c.g, 0xbb as f32 / 255.0);
-        approx(c.b, 0xcc as f32 / 255.0);
+        let (r, g, b) =
+            (f32::from(0xaa_u8) / 255.0, f32::from(0xbb_u8) / 255.0, f32::from(0xcc_u8) / 255.0);
+        approx(c.r, r);
+        approx(c.g, g);
+        approx(c.b, b);
     }
 
     #[test]

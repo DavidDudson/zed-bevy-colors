@@ -1,3 +1,5 @@
+//! Detect Bevy named color constants such as `Color::WHITE` and `Color::TOMATO`.
+
 use crate::color::Rgba;
 use crate::detectors::ColorMatch;
 use crate::num::u32_to_usize;
@@ -22,6 +24,7 @@ static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_const query")
 });
 
+/// Scan `tree`/`source` for Bevy color constants and push [`ColorMatch`] results into `out`.
 pub fn detect(
     tree: &Tree,
     source: &str,
@@ -93,7 +96,7 @@ mod tests {
     fn none_const() {
         let m = detect_str("Color::NONE");
         assert_eq!(m.len(), 1);
-        assert_eq!(m[0].color.a, 0.0);
+        assert!(m[0].color.a.abs() < f32::EPSILON);
     }
 
     #[test]

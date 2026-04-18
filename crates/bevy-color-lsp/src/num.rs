@@ -12,14 +12,14 @@ const _: () = assert!(usize::BITS >= 32, "32-bit targets not supported");
 /// Widen a `u32` to `usize`. Lossless on all supported targets.
 #[inline]
 #[must_use]
-pub fn u32_to_usize(x: u32) -> usize {
+pub const fn u32_to_usize(x: u32) -> usize {
     x as usize
 }
 
 /// Narrow a `usize` to `u32`, saturating at `u32::MAX`.
 #[inline]
 #[must_use]
-pub fn usize_to_u32_sat(x: usize) -> u32 {
+pub const fn usize_to_u32_sat(x: usize) -> u32 {
     if x > u32::MAX as usize {
         u32::MAX
     } else {

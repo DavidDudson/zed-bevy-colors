@@ -3,7 +3,13 @@
     clippy::expect_used,
     clippy::panic,
     clippy::missing_panics_doc,
-    clippy::missing_errors_doc
+    clippy::missing_errors_doc,
+    clippy::redundant_closure_for_method_calls, // integration test closures are explicit for clarity
+    clippy::uninlined_format_args, // test assertions are clear as-is
+    clippy::cast_possible_truncation, // test-only: content_length parse; runtime correctness validated by test
+    clippy::manual_assert,          // if n == 0 { panic!(...) } is explicit and clear in test context
+    clippy::cargo_common_metadata,  // test binary, not published
+    clippy::multiple_crate_versions, // transitive dep conflict we don't control
 )]
 
 use serde_json::{json, Value};

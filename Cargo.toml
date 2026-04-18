@@ -36,6 +36,16 @@ todo = "warn"
 unimplemented = "warn"
 missing_errors_doc = "warn"
 missing_panics_doc = "warn"
+# Palette tables and color-math functions use single-char names that match
+# the mathematical convention (h, s, l, r, g, b…). Renaming would reduce
+# readability. Allow workspace-wide; applies only when pedantic is enabled.
+many_single_char_names = "allow"
+# Palette lookup tables are large by necessity (CSS/Tailwind color sets).
+# Splitting them would add indirection with no maintainability benefit.
+too_many_lines = "allow"
+# Publish metadata (readme, keywords, categories) is managed at release
+# time. The binary crate (bevy-color-lsp) is not published to crates.io.
+cargo_common_metadata = "allow"
 
 [profile.release]
 lto = "thin"

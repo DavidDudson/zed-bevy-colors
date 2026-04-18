@@ -52,6 +52,19 @@ cargo install --path crates/bevy-color-lsp
 bevy-color-lsp   # speaks LSP over stdio
 ```
 
+### Logging
+
+Set the `BEVY_COLOR_LSP_LOG` environment variable to control server log
+output (written to stderr). Uses [`tracing-subscriber`'s `EnvFilter`
+syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html):
+
+```sh
+BEVY_COLOR_LSP_LOG=debug bevy-color-lsp
+BEVY_COLOR_LSP_LOG=bevy_color_lsp=trace bevy-color-lsp
+```
+
+Defaults to `info` when unset.
+
 ### What it detects
 
 | Pattern | Example |
@@ -102,6 +115,12 @@ cargo build -p bevy-color-lsp --release
 Without nix: install Rust stable with `rustfmt`, `clippy`, and the
 `wasm32-wasip2` target (the `rust-toolchain.toml` does this
 automatically under `rustup`).
+
+Browse the API documentation locally:
+
+```sh
+cargo doc --workspace --no-deps --open
+```
 
 ## License
 

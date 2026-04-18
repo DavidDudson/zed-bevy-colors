@@ -1,3 +1,8 @@
+// cargo lints (cargo_common_metadata, multiple_crate_versions) are package-level
+// and must be suppressed per-crate; they cannot be overridden from workspace lints
+// when `-W clippy::cargo` is passed on the command line.
+#![allow(clippy::cargo_common_metadata, clippy::multiple_crate_versions)]
+
 use bevy_color_lsp::server::run;
 use tracing_subscriber::{fmt, EnvFilter};
 

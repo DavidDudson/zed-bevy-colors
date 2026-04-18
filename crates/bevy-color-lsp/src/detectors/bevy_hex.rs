@@ -1,3 +1,5 @@
+//! Detect Bevy `Color::hex("...")` call expressions.
+
 use crate::color::parse_hex;
 use crate::detectors::ColorMatch;
 use crate::num::u32_to_usize;
@@ -27,6 +29,7 @@ static QUERY: LazyLock<Query> = LazyLock::new(|| {
 
 const HEX_TYPES: &[&str] = &["Color", "Srgba", "LinearRgba"];
 
+/// Scan `tree`/`source` for `Color::hex("…")` calls and push [`ColorMatch`] results into `out`.
 pub fn detect(
     tree: &Tree,
     source: &str,

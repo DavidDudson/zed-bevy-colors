@@ -3,7 +3,13 @@
     clippy::expect_used,
     clippy::panic,
     clippy::missing_panics_doc,
-    clippy::missing_errors_doc
+    clippy::missing_errors_doc,
+    clippy::cast_precision_loss,     // bench: usize → u64 for throughput; acceptable in bench context
+    clippy::cast_possible_truncation, // bench: line count fits in u32 for any realistic file size
+    clippy::uninlined_format_args,   // synth_source format is clear as-is
+    clippy::format_push_string,      // push_str(&format!(...)) in bench synth is simpler than write! with trait import
+    clippy::cargo_common_metadata,   // bench binary, not published
+    clippy::multiple_crate_versions, // transitive dep conflict we don't control
 )]
 
 use bevy_color_lsp::detectors::detect_all;

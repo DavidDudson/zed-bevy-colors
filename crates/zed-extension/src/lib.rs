@@ -1,3 +1,16 @@
+//! Zed extension shim — locates or downloads the `bevy-color-lsp` binary.
+//!
+//! There are no authored public items; the only public symbol is the
+//! `#[export_name = "init-extension"]` function emitted by
+//! `zed::register_extension!`, which has no Rust doc slot.
+#![warn(missing_docs)]
+#![allow(missing_docs)]
+// register_extension! emits a pub extern "C" fn with no doc slot
+// `cargo_common_metadata`: readme/keywords/categories are managed at release time.
+#![allow(clippy::cargo_common_metadata)]
+// `multiple_crate_versions`: transitive dep conflict we don't control.
+#![allow(clippy::multiple_crate_versions)]
+
 use zed_extension_api::{
     self as zed, settings::LspSettings, Command, LanguageServerId, Result, Worktree,
 };
@@ -72,7 +85,7 @@ fn asset_name(platform: zed::Os, arch: zed::Architecture) -> Result<String> {
         (zed::Os::Linux, zed::Architecture::X8664) => "x86_64-unknown-linux-gnu",
         (zed::Os::Linux, zed::Architecture::Aarch64) => "aarch64-unknown-linux-gnu",
         (zed::Os::Windows, zed::Architecture::X8664) => "x86_64-pc-windows-msvc",
-        (os, arch) => return Err(format!("unsupported platform: {:?}/{:?}", os, arch)),
+        (os, arch) => return Err(format!("unsupported platform: {os:?}/{arch:?}")),
     };
     let ext = match platform {
         zed::Os::Windows => "zip",
@@ -81,14 +94,14 @@ fn asset_name(platform: zed::Os, arch: zed::Architecture) -> Result<String> {
     Ok(format!("bevy-color-lsp-{target}.{ext}"))
 }
 
-fn file_type(platform: zed::Os) -> zed::DownloadedFileType {
+const fn file_type(platform: zed::Os) -> zed::DownloadedFileType {
     match platform {
         zed::Os::Windows => zed::DownloadedFileType::Zip,
         _ => zed::DownloadedFileType::GzipTar,
     }
 }
 
-fn bin_suffix(platform: zed::Os) -> &'static str {
+const fn bin_suffix(platform: zed::Os) -> &'static str {
     match platform {
         zed::Os::Windows => ".exe",
         _ => "",

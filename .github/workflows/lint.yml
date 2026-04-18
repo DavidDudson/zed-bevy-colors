@@ -17,8 +17,6 @@ jobs:
 
   pedantic:
     runs-on: ubuntu-latest
-    # Stream 4 flips this to `false` after pedantic-clean codebase.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

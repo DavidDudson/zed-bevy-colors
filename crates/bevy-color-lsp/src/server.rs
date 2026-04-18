@@ -1,11 +1,15 @@
+//! Tower-LSP server implementation.
+
 use crate::document::DocumentStore;
 use crate::num::f32_to_u8_clamped;
 use std::sync::Arc;
 use tower_lsp::jsonrpc::Result;
+#[allow(clippy::wildcard_imports)] // tower_lsp::lsp_types is a stable, well-scoped re-export
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tracing::instrument;
 
+/// Tower-LSP backend holding shared document state.
 #[derive(Debug)]
 pub struct Backend {
     client: Client,
@@ -98,12 +102,15 @@ impl LanguageServer for Backend {
         let label = if c.alpha < 1.0 {
             format!("Color::srgba({:.3}, {:.3}, {:.3}, {:.3})", c.red, c.green, c.blue, c.alpha)
         } else {
-            format!("Color::srgb_u8({}, {}, {})", r, g, b)
+            format!("Color::srgb_u8({r}, {g}, {b})")
         };
         Ok(vec![ColorPresentation { label, ..Default::default() }])
     }
 }
 
+/// Start the LSP server, reading from stdin and writing to stdout.
+///
+/// Blocks until the client closes the connection.
 pub async fn run() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

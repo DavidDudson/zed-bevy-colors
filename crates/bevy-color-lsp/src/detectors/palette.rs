@@ -1,3 +1,5 @@
+//! Detect palette color references such as `palettes::css::TOMATO`.
+
 use crate::detectors::ColorMatch;
 use crate::num::u32_to_usize;
 use crate::palette::lookup_palette;
@@ -25,6 +27,7 @@ static QUERY: LazyLock<Query> = LazyLock::new(|| {
 
 const MODULES: &[&str] = &["css", "tailwind", "basic"];
 
+/// Scan `tree`/`source` for palette color references and push [`ColorMatch`] results into `out`.
 pub fn detect(
     tree: &Tree,
     source: &str,

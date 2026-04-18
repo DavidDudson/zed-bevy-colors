@@ -1,3 +1,5 @@
+//! Detect Bevy `Color::<ctor>(...)` call expressions.
+
 use crate::color::{hsl_to_rgb, hsv_to_rgb, hwb_to_rgb, oklab_to_rgb, oklch_to_rgb, Rgba};
 use crate::detectors::ColorMatch;
 use crate::num::{f32_to_u8_clamped, u32_to_usize};
@@ -5,13 +7,13 @@ use std::ops::Range;
 use std::sync::LazyLock;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
-const QUERY_SRC: &str = r#"
+const QUERY_SRC: &str = r"
 (call_expression
   function: (scoped_identifier
     path: (identifier) @type
     name: (identifier) @ctor)
   arguments: (arguments) @args) @call
-"#;
+";
 
 // `QUERY_SRC` is a `const &str`; `Query::new` only errors on a syntax
 // bug in the source, which the unit tests would catch immediately. A
@@ -35,6 +37,7 @@ const COLOR_TYPES: &[&str] = &[
     "Xyza",
 ];
 
+/// Scan `tree`/`source` for Bevy constructor calls and push [`ColorMatch`] results into `out`.
 pub fn detect(
     tree: &Tree,
     source: &str,
@@ -102,12 +105,10 @@ fn parse_number(node: Node<'_>, bytes: &[u8]) -> Option<f32> {
         let mut inner = None;
         let mut w = node.walk();
         for c in node.children(&mut w) {
-            if !c.is_named() {
-                if c.utf8_text(bytes).ok() == Some("-") {
-                    sign = -1.0;
-                }
-            } else {
+            if c.is_named() {
                 inner = Some(c);
+            } else if c.utf8_text(bytes).ok() == Some("-") {
+                sign = -1.0;
             }
         }
         let v = parse_number(inner?, bytes)?;
@@ -138,7 +139,7 @@ fn build_color(ty: &str, ctor: &str, n: &[f32]) -> Option<Rgba> {
     let get = |i: usize| n.get(i).copied();
     let get_or_one = |i: usize| n.get(i).copied().unwrap_or(1.0);
     match (ty, ctor) {
-        ("Color", "srgb") | ("Color", "linear_rgb") | ("Srgba", "rgb") | ("LinearRgba", "rgb") => {
+        ("Color", "srgb" | "linear_rgb") | ("Srgba" | "LinearRgba", "rgb") => {
             let (r, g, b) = (get(0)?, get(1)?, get(2)?);
             if ty == "LinearRgba" || ctor == "linear_rgb" {
                 Some(Rgba::from_linear(r, g, b, 1.0))
@@ -146,10 +147,7 @@ fn build_color(ty: &str, ctor: &str, n: &[f32]) -> Option<Rgba> {
                 Some(Rgba::new(r, g, b, 1.0))
             }
         }
-        ("Color", "srgba")
-        | ("Color", "linear_rgba")
-        | ("Srgba", "new")
-        | ("LinearRgba", "new") => {
+        ("Color", "srgba" | "linear_rgba") | ("Srgba" | "LinearRgba", "new") => {
             let (r, g, b, a) = (get(0)?, get(1)?, get(2)?, get_or_one(3));
             if ty == "LinearRgba" || ctor == "linear_rgba" {
                 Some(Rgba::from_linear(r, g, b, a))
@@ -169,11 +167,11 @@ fn build_color(ty: &str, ctor: &str, n: &[f32]) -> Option<Rgba> {
             f32_to_u8_clamped(get(2)?),
             f32_to_u8_clamped(get(3).unwrap_or(255.0)),
         )),
-        ("Color", "hsl") | ("Hsla", "hsl") => Some(hsl_to_rgb(get(0)?, get(1)?, get(2)?, 1.0)),
+        ("Color" | "Hsla", "hsl") => Some(hsl_to_rgb(get(0)?, get(1)?, get(2)?, 1.0)),
         ("Color", "hsla") | ("Hsla", "new") => {
             Some(hsl_to_rgb(get(0)?, get(1)?, get(2)?, get_or_one(3)))
         }
-        ("Color", "hsv") | ("Hsva", "hsv") => Some(hsv_to_rgb(get(0)?, get(1)?, get(2)?, 1.0)),
+        ("Color" | "Hsva", "hsv") => Some(hsv_to_rgb(get(0)?, get(1)?, get(2)?, 1.0)),
         ("Hsva", "new") => Some(hsv_to_rgb(get(0)?, get(1)?, get(2)?, get_or_one(3))),
         ("Color", "hwb") => Some(hwb_to_rgb(get(0)?, get(1)?, get(2)?, 1.0)),
         ("Hwba", "new") => Some(hwb_to_rgb(get(0)?, get(1)?, get(2)?, get_or_one(3))),
