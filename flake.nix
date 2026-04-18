@@ -25,12 +25,29 @@
             rust
             cargo-criterion
             cargo-watch
+            cargo-deny
+            cargo-llvm-cov
             just
+            lefthook
             release-plz
             git-cliff
+            typos
+            taplo
           ];
 
           RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
+          # `cargo llvm-cov` needs llvm-tools; rust-overlay's stable toolchain
+          # doesn't bundle them, so point at the nix-provided llvm.
+          LLVM_COV = "${pkgs.llvmPackages.bintools}/bin/llvm-cov";
+          LLVM_PROFDATA = "${pkgs.llvmPackages.bintools}/bin/llvm-profdata";
+
+          shellHook = ''
+            # Use -e (any path) rather than -d: git worktrees have `.git` as
+            # a regular file (gitdir: …), not a directory.
+            if [ -e .git ] && [ ! -e .git/hooks/pre-commit ]; then
+              ${pkgs.lefthook}/bin/lefthook install >/dev/null
+            fi
+          '';
         };
       });
 }

@@ -1,12 +1,32 @@
+//! Named color lookup tables: CSS, Tailwind, and basic palettes.
+//!
+//! # Coverage note
+//!
+//! The `css_named` and `tailwind_hex` functions consist almost entirely of
+//! large `match` arms, one per named color. These are pure lookup data — the
+//! dispatch logic is covered by the `css_tomato`, `tailwind_blue_500`, and
+//! `lookup_palette_dispatch` unit tests. Adding one test per color entry
+//! would be redundant busywork with no bug-detection value; per-entry
+//! coverage is explicitly not pursued. The resulting low line-coverage
+//! percentage on this file is expected and intentional.
+
 use crate::color::{parse_hex, Rgba};
 
+/// Look up a color by name across all palettes (CSS → basic → Tailwind).
+///
+/// `name` is matched case-insensitively; underscores separate words.
+/// Returns `None` if no matching entry is found.
+#[must_use]
 pub fn lookup_named(name: &str) -> Option<Rgba> {
     let upper = name.to_ascii_uppercase();
-    css_named(&upper)
-        .or_else(|| basic_named(&upper))
-        .or_else(|| tailwind_named(&upper))
+    css_named(&upper).or_else(|| basic_named(&upper)).or_else(|| tailwind_named(&upper))
 }
 
+/// Look up a color in a specific palette module (`"css"`, `"basic"`, or `"tailwind"`).
+///
+/// `name` is matched case-insensitively. Returns `None` for unknown
+/// modules or names not present in the selected palette.
+#[must_use]
 pub fn lookup_palette(module: &str, name: &str) -> Option<Rgba> {
     let upper = name.to_ascii_uppercase();
     match module {
@@ -17,6 +37,7 @@ pub fn lookup_palette(module: &str, name: &str) -> Option<Rgba> {
     }
 }
 
+#[allow(clippy::match_same_arms, clippy::too_many_lines)] // CSS spec intentionally aliases colors; table size is inherent
 fn css_named(name: &str) -> Option<Rgba> {
     Some(match name {
         "ALICE_BLUE" => Rgba::from_u8(240, 248, 255, 255),
@@ -192,6 +213,7 @@ fn tailwind_named(name: &str) -> Option<Rgba> {
     parse_hex(hex)
 }
 
+#[allow(clippy::match_same_arms, clippy::too_many_lines)] // Tailwind hues share hex values; table size is inherent
 fn tailwind_hex(hue: &str, shade: &str) -> Option<&'static str> {
     Some(match (hue, shade) {
         ("SLATE", "50") => "f8fafc",
@@ -441,6 +463,7 @@ fn tailwind_hex(hue: &str, shade: &str) -> Option<&'static str> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

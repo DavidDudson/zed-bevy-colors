@@ -1,15 +1,30 @@
-use crate::detectors::{detect_all, detect_in_range, ColorMatch};
-use crate::parser::parse_incremental;
+//! Per-document text storage with incremental color detection caching.
+//!
+//! LSP positions use UTF-16 offset semantics (as required by the protocol).
+//! All conversion helpers in this module work with byte offsets internally
+//! and translate to/from UTF-16 only at the boundary.
+
 use std::collections::HashMap;
-use std::sync::Mutex;
+
+use parking_lot::Mutex;
 use tower_lsp::lsp_types::{Position, Range, Url};
 use tree_sitter::{InputEdit, Point, Tree};
+
+use crate::{
+    detectors::{detect_all, detect_in_range, ColorMatch},
+    error::{Error, Result},
+    num::{u32_to_usize, usize_to_u32_sat},
+    parser::parse_incremental,
+};
 
 /// Bytes of context around an edit to rescan, ensuring partial color
 /// expressions split by the edit boundary are still captured.
 const RESCAN_CONTEXT: usize = 256;
 
+/// A single open document managed by the LSP server.
+#[derive(Debug)]
 pub struct Document {
+    /// Full UTF-8 source text of the document.
     pub text: String,
     line_starts: Vec<usize>,
     tree: Option<Tree>,
@@ -17,16 +32,14 @@ pub struct Document {
 }
 
 impl Document {
+    /// Create a new `Document` from the given text, initializing internal indexes.
+    #[must_use]
     pub fn new(text: String) -> Self {
         let line_starts = compute_line_starts(&text);
-        Self {
-            text,
-            line_starts,
-            tree: None,
-            cache: None,
-        }
+        Self { text, line_starts, tree: None, cache: None }
     }
 
+    /// Replace the document text wholesale, invalidating the parse tree and color cache.
     pub fn set_text(&mut self, text: String) {
         self.text = text;
         self.line_starts = compute_line_starts(&self.text);
@@ -34,6 +47,9 @@ impl Document {
         self.cache = None;
     }
 
+    /// Apply an incremental LSP text change. If `range` is `None` the full text is replaced.
+    ///
+    /// Positions in `range` use UTF-16 character offsets as required by the LSP spec.
     pub fn apply_change(&mut self, range: Option<Range>, new_text: &str) {
         let Some(range) = range else {
             self.set_text(new_text.to_string());
@@ -42,7 +58,7 @@ impl Document {
         let start_byte = position_to_byte(&self.text, &self.line_starts, range.start);
         let old_end_byte = position_to_byte(&self.text, &self.line_starts, range.end);
         let new_end_byte = start_byte + new_text.len();
-        let delta = new_end_byte as isize - old_end_byte as isize;
+        let delta: isize = new_end_byte.cast_signed() - old_end_byte.cast_signed();
 
         let start_position = lsp_to_point(range.start);
         let old_end_position = lsp_to_point(range.end);
@@ -65,7 +81,7 @@ impl Document {
         let old_cache = self.cache.take();
         self.tree = parse_incremental(&self.text, self.tree.as_ref());
         if let (Some(tree), Some(old)) = (self.tree.as_ref(), old_cache) {
-            self.cache = Some(incremental_color_update(
+            match incremental_color_update(
                 &self.text,
                 tree,
                 old,
@@ -73,10 +89,17 @@ impl Document {
                 old_end_byte,
                 new_end_byte,
                 delta,
-            ));
+            ) {
+                Ok(updated) => self.cache = Some(updated),
+                Err(err) => {
+                    tracing::warn!(error = %err, "incremental update failed; cache invalidated");
+                    self.cache = None;
+                }
+            }
         }
     }
 
+    /// Return all detected colors in the document, using the cache when valid.
     pub fn colors(&mut self) -> Vec<(Range, ColorMatch)> {
         if let Some(cached) = &self.cache {
             return cached.clone();
@@ -96,11 +119,7 @@ impl Document {
         let mut matches = detect_all(tree, &self.text);
         matches.sort_by_key(|m| (m.start_byte, m.end_byte));
         let ranges = byte_ranges_to_lsp(&self.text, &matches);
-        matches
-            .into_iter()
-            .zip(ranges)
-            .map(|(m, r)| (r, m))
-            .collect()
+        matches.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect()
     }
 }
 
@@ -112,7 +131,7 @@ fn incremental_color_update(
     edit_old_end: usize,
     edit_new_end: usize,
     delta: isize,
-) -> Vec<(Range, ColorMatch)> {
+) -> Result<Vec<(Range, ColorMatch)>> {
     let rescan_start = edit_start.saturating_sub(RESCAN_CONTEXT);
     let rescan_end = (edit_new_end + RESCAN_CONTEXT).min(text.len());
 
@@ -121,13 +140,9 @@ fn incremental_color_update(
         if m.end_byte <= edit_start {
             kept.push(m);
         } else if m.start_byte >= edit_old_end {
-            let new_start = (m.start_byte as isize + delta) as usize;
-            let new_end = (m.end_byte as isize + delta) as usize;
-            kept.push(ColorMatch {
-                start_byte: new_start,
-                end_byte: new_end,
-                color: m.color,
-            });
+            let new_start = m.start_byte.checked_add_signed(delta).ok_or(Error::OffsetOverflow)?;
+            let new_end = m.end_byte.checked_add_signed(delta).ok_or(Error::OffsetOverflow)?;
+            kept.push(ColorMatch { start_byte: new_start, end_byte: new_end, color: m.color });
         }
     }
     kept.retain(|m| m.end_byte <= rescan_start || m.start_byte >= rescan_end);
@@ -138,7 +153,7 @@ fn incremental_color_update(
     kept.dedup_by_key(|m| (m.start_byte, m.end_byte));
 
     let ranges = byte_ranges_to_lsp(text, &kept);
-    kept.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect()
+    Ok(kept.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect())
 }
 
 fn compute_line_starts(text: &str) -> Vec<usize> {
@@ -151,11 +166,8 @@ fn compute_line_starts(text: &str) -> Vec<usize> {
     starts
 }
 
-fn lsp_to_point(p: Position) -> Point {
-    Point {
-        row: p.line as usize,
-        column: p.character as usize,
-    }
+const fn lsp_to_point(p: Position) -> Point {
+    Point { row: u32_to_usize(p.line), column: u32_to_usize(p.character) }
 }
 
 fn byte_to_point(text: &str, byte: usize) -> Point {
@@ -170,24 +182,22 @@ fn byte_to_point(text: &str, byte: usize) -> Point {
             last_line_start = i + 1;
         }
     }
-    let column = text
-        .get(last_line_start..byte.min(text.len()))
-        .map(|s| s.encode_utf16().count())
-        .unwrap_or(0);
+    let column =
+        text.get(last_line_start..byte.min(text.len())).map_or(0, |s| s.encode_utf16().count());
     Point { row, column }
 }
 
+/// Convert an LSP `Position` (UTF-16 character offset) to a UTF-8 byte offset.
+///
+/// If `pos` is beyond the end of the document the function returns `text.len()`.
+#[must_use]
 pub fn position_to_byte(text: &str, line_starts: &[usize], pos: Position) -> usize {
-    let line = pos.line as usize;
+    let line = u32_to_usize(pos.line);
     if line >= line_starts.len() {
         return text.len();
     }
     let line_start = line_starts[line];
-    let line_end = line_starts
-        .get(line + 1)
-        .copied()
-        .map(|n| n.saturating_sub(1))
-        .unwrap_or(text.len());
+    let line_end = line_starts.get(line + 1).copied().map_or(text.len(), |n| n.saturating_sub(1));
     let line_slice = &text[line_start..line_end];
 
     let mut col_utf16 = 0u32;
@@ -196,12 +206,16 @@ pub fn position_to_byte(text: &str, line_starts: &[usize], pos: Position) -> usi
         if col_utf16 >= pos.character {
             break;
         }
-        col_utf16 += ch.len_utf16() as u32;
+        col_utf16 += usize_to_u32_sat(ch.len_utf16());
         byte_offset += ch.len_utf8();
     }
     line_start + byte_offset
 }
 
+/// Convert a slice of byte-range [`ColorMatch`] values to LSP [`Range`] values in one pass.
+///
+/// Positions in the returned ranges use UTF-16 character offsets as required by LSP.
+#[must_use]
 pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
     let mut points: Vec<(usize, bool, usize)> = Vec::with_capacity(matches.len() * 2);
     for (i, m) in matches.iter().enumerate() {
@@ -223,10 +237,7 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
             if b > idx {
                 break;
             }
-            let pos = Position {
-                line,
-                character: col_utf16,
-            };
+            let pos = Position { line, character: col_utf16 };
             if is_start {
                 starts[mi] = pos;
             } else {
@@ -239,16 +250,13 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
             line += 1;
             col_utf16 = 0;
         } else {
-            col_utf16 += ch.len_utf16() as u32;
+            col_utf16 += usize_to_u32_sat(ch.len_utf16());
         }
         idx += len;
     }
     for (b, is_start, mi) in iter {
         debug_assert!(b >= idx);
-        let pos = Position {
-            line,
-            character: col_utf16,
-        };
+        let pos = Position { line, character: col_utf16 };
         if is_start {
             starts[mi] = pos;
         } else {
@@ -256,13 +264,11 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
         }
     }
 
-    starts
-        .into_iter()
-        .zip(ends)
-        .map(|(start, end)| Range { start, end })
-        .collect()
+    starts.into_iter().zip(ends).map(|(start, end)| Range { start, end }).collect()
 }
 
+/// Convert a UTF-8 byte offset to an LSP `Position` (UTF-16 character offset).
+#[must_use]
 pub fn byte_to_position(text: &str, byte: usize) -> Position {
     let mut line = 0u32;
     let mut col_utf16 = 0u32;
@@ -276,53 +282,52 @@ pub fn byte_to_position(text: &str, byte: usize) -> Position {
             line += 1;
             col_utf16 = 0;
         } else {
-            col_utf16 += ch.len_utf16() as u32;
+            col_utf16 += usize_to_u32_sat(ch.len_utf16());
         }
         idx += len;
     }
-    Position {
-        line,
-        character: col_utf16,
-    }
+    Position { line, character: col_utf16 }
 }
 
-#[derive(Default)]
+/// Thread-safe store of open LSP documents, keyed by URI.
+#[derive(Debug, Default)]
 pub struct DocumentStore {
     docs: Mutex<HashMap<Url, Document>>,
 }
 
 impl DocumentStore {
+    /// Insert a newly opened document for `uri`.
     pub fn open(&self, uri: Url, text: String) {
-        self.docs.lock().unwrap().insert(uri, Document::new(text));
+        self.docs.lock().insert(uri, Document::new(text));
     }
 
+    /// Replace the full text of an already-open document.
     pub fn replace(&self, uri: &Url, text: String) {
-        if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
+        if let Some(doc) = self.docs.lock().get_mut(uri) {
             doc.set_text(text);
         }
     }
 
+    /// Apply an incremental text change to an open document.
     pub fn apply_change(&self, uri: &Url, range: Option<Range>, text: &str) {
-        if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
+        if let Some(doc) = self.docs.lock().get_mut(uri) {
             doc.apply_change(range, text);
         }
     }
 
+    /// Remove a closed document from the store.
     pub fn close(&self, uri: &Url) {
-        self.docs.lock().unwrap().remove(uri);
+        self.docs.lock().remove(uri);
     }
 
+    /// Return the color list for `uri`, or an empty `Vec` if the document is not open.
     pub fn colors_for(&self, uri: &Url) -> Vec<(Range, ColorMatch)> {
-        self.docs
-            .lock()
-            .unwrap()
-            .get_mut(uri)
-            .map(|d| d.colors())
-            .unwrap_or_default()
+        self.docs.lock().get_mut(uri).map(Document::colors).unwrap_or_default()
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::color::Rgba;
@@ -351,12 +356,9 @@ mod tests {
     fn position_to_byte_round_trip() {
         let text = "ab\nc\u{1F600}de\nfg";
         let starts = compute_line_starts(text);
-        let p = Position {
-            line: 1,
-            character: 3,
-        };
+        let p = Position { line: 1, character: 3 };
         let byte = position_to_byte(text, &starts, p);
-        assert_eq!(&text[byte..byte + 1], "d");
+        assert_eq!(&text[byte..=byte], "d");
     }
 
     #[test]
@@ -383,14 +385,8 @@ mod tests {
         let mut doc = Document::new("let a = Color::WHITE;".to_string());
         assert_eq!(doc.colors().len(), 1);
         let range = Range {
-            start: Position {
-                line: 0,
-                character: 21,
-            },
-            end: Position {
-                line: 0,
-                character: 21,
-            },
+            start: Position { line: 0, character: 21 },
+            end: Position { line: 0, character: 21 },
         };
         doc.apply_change(Some(range), " let b = Color::BLACK;");
         let cs = doc.colors();
@@ -403,14 +399,8 @@ mod tests {
         let cs = doc.colors();
         assert!((cs[0].1.color.r - 1.0).abs() < 0.01);
         let range = Range {
-            start: Position {
-                line: 0,
-                character: 20,
-            },
-            end: Position {
-                line: 0,
-                character: 23,
-            },
+            start: Position { line: 0, character: 20 },
+            end: Position { line: 0, character: 23 },
         };
         doc.apply_change(Some(range), "0.0");
         let cs = doc.colors();
@@ -420,16 +410,9 @@ mod tests {
     #[test]
     fn batch_ranges_match_per_call() {
         let text = "a\nbb\ncccc\nColor::WHITE";
-        let m = ColorMatch {
-            start_byte: 10,
-            end_byte: 22,
-            color: Rgba::WHITE,
-        };
+        let m = ColorMatch { start_byte: 10, end_byte: 22, color: Rgba::WHITE };
         let batched = byte_ranges_to_lsp(text, &[m]);
-        let single = Range {
-            start: byte_to_position(text, 10),
-            end: byte_to_position(text, 22),
-        };
+        let single = Range { start: byte_to_position(text, 10), end: byte_to_position(text, 22) };
         assert_eq!(batched[0], single);
     }
 }

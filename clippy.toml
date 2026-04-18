@@ -1,0 +1,4 @@
+msrv = "1.87"
+cognitive-complexity-threshold = 20
+too-many-lines-threshold = 120
+type-complexity-threshold = 250

@@ -1,8 +1,10 @@
-use crate::detectors::ColorMatch;
-use crate::palette::lookup_palette;
-use std::ops::Range;
-use std::sync::LazyLock;
+//! Detect palette color references such as `palettes::css::TOMATO`.
+
+use std::{ops::Range, sync::LazyLock};
+
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
+
+use crate::{detectors::ColorMatch, num::u32_to_usize, palette::lookup_palette};
 
 const QUERY_SRC: &str = r#"
 (scoped_identifier
@@ -14,12 +16,17 @@ const QUERY_SRC: &str = r#"
   (#match? @name "^[A-Z][A-Z0-9_]*$")) @full
 "#;
 
+// `QUERY_SRC` is a `const &str`; `Query::new` only errors on a syntax
+// bug in the source, which the unit tests would catch immediately. A
+// failure here is a build-time authoring bug.
+#[allow(clippy::expect_used)]
 static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile palette query")
 });
 
 const MODULES: &[&str] = &["css", "tailwind", "basic"];
 
+/// Scan `tree`/`source` for palette color references and push [`ColorMatch`] results into `out`.
 pub fn detect(
     tree: &Tree,
     source: &str,
@@ -39,7 +46,7 @@ pub fn detect(
         let mut full_start = 0;
         let mut full_end = 0;
         for cap in m.captures {
-            let cap_name = &QUERY.capture_names()[cap.index as usize];
+            let cap_name = &QUERY.capture_names()[u32_to_usize(cap.index)];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
             match *cap_name {
                 "module" => module = text,
@@ -55,16 +62,13 @@ pub fn detect(
             continue;
         }
         if let Some(color) = lookup_palette(module, name) {
-            out.push(ColorMatch {
-                start_byte: full_start,
-                end_byte: full_end,
-                color,
-            });
+            out.push(ColorMatch { start_byte: full_start, end_byte: full_end, color });
         }
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::parser::parse;

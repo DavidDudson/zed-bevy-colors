@@ -1,9 +1,25 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::redundant_closure_for_method_calls, // integration test closures are explicit for clarity
+    clippy::uninlined_format_args, // test assertions are clear as-is
+    clippy::cast_possible_truncation, // test-only: content_length parse; runtime correctness validated by test
+    clippy::manual_assert,          // if n == 0 { panic!(...) } is explicit and clear in test context
+    clippy::cargo_common_metadata,  // test binary, not published
+    clippy::multiple_crate_versions, // transitive dep conflict we don't control
+)]
+
+use std::{process::Stdio, time::Duration};
+
 use serde_json::{json, Value};
-use std::process::Stdio;
-use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{ChildStdin, ChildStdout, Command};
-use tokio::time::timeout;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    process::{ChildStdin, ChildStdout, Command},
+    time::timeout,
+};
 
 const BIN: &str = env!("CARGO_BIN_EXE_bevy-color-lsp");
 
@@ -74,10 +90,7 @@ async fn handshake_and_document_color() {
     )
     .await;
     let init_resp = read_until_response_id(&mut reader, 1).await;
-    assert_eq!(
-        init_resp["result"]["capabilities"]["colorProvider"],
-        json!(true)
-    );
+    assert_eq!(init_resp["result"]["capabilities"]["colorProvider"], json!(true));
 
     write_msg(
         &mut stdin,
@@ -122,12 +135,7 @@ async fn handshake_and_document_color() {
     .await;
     let resp = read_until_response_id(&mut reader, 2).await;
     let colors = resp["result"].as_array().expect("colors array");
-    assert_eq!(
-        colors.len(),
-        2,
-        "expected srgb + WHITE colors, got {:?}",
-        colors
-    );
+    assert_eq!(colors.len(), 2, "expected srgb + WHITE colors, got {:?}", colors);
 
     let first = &colors[0];
     let red = first["color"]["red"].as_f64().unwrap();

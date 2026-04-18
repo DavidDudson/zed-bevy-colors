@@ -13,3 +13,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 zed_extension_api = "0.7"
+
+[lints]
+workspace = true

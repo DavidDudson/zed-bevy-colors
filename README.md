@@ -1,6 +1,7 @@
 # zed-bevy-color
 
 [![CI](https://github.com/DavidDudson/zed-bevy-colors/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidDudson/zed-bevy-colors/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/DavidDudson/zed-bevy-colors/graph/badge.svg)](https://codecov.io/gh/DavidDudson/zed-bevy-colors)
 [![Release](https://img.shields.io/github/v/release/DavidDudson/zed-bevy-colors?display_name=tag&sort=semver)](https://github.com/DavidDudson/zed-bevy-colors/releases)
 [![Zed extension](https://img.shields.io/badge/zed-extension-084CCF?logo=zedindustries&logoColor=white)](https://zed.dev/extensions?query=bevy-color)
 [![License](https://img.shields.io/github/license/DavidDudson/zed-bevy-colors)](LICENSE)
@@ -52,6 +53,19 @@ cargo install --path crates/bevy-color-lsp
 bevy-color-lsp   # speaks LSP over stdio
 ```
 
+### Logging
+
+Set the `BEVY_COLOR_LSP_LOG` environment variable to control server log
+output (written to stderr). Uses [`tracing-subscriber`'s `EnvFilter`
+syntax](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html):
+
+```sh
+BEVY_COLOR_LSP_LOG=debug bevy-color-lsp
+BEVY_COLOR_LSP_LOG=bevy_color_lsp=trace bevy-color-lsp
+```
+
+Defaults to `info` when unset.
+
 ### What it detects
 
 | Pattern | Example |
@@ -64,6 +78,75 @@ bevy-color-lsp   # speaks LSP over stdio
 
 Detection is syntactic (tree-sitter-rust) — no type resolution, but no
 false positives on calls to non-`Color` types either.
+
+## Benchmarks
+
+`cargo bench -p bevy-color-lsp --bench pipeline` (criterion). Source
+sizes are synthetic Bevy functions with ~6 color literals each. Point
+estimates are the middle of criterion's [low, mean, high] triplet;
+measured locally with the release profile (`lto = "thin"`,
+`codegen-units = 1`, `strip = true`).
+
+### Parse + detect
+
+| Size (fns) | Parse | Detect | Detect (suffixed literals) |
+|---:|---:|---:|---:|
+| 1 | 26 µs | 53 µs | — |
+| 10 | 256 µs | 469 µs | — |
+| 50 | 1.28 ms | 2.32 ms | 1.58 ms |
+| 200 | 5.18 ms | 9.28 ms | 6.38 ms |
+
+### Full pipeline
+
+| Size | Cold (parse + detect + range) | Cached (cache hit) |
+|---:|---:|---:|
+| 1 fn | 83 µs | 10 ns |
+| 10 | 756 µs | 47 ns |
+| 50 | 3.69 ms | 105 ns |
+| 200 | 14.8 ms | 825 ns |
+
+### LSP document ops
+
+| Op | small | medium | large |
+|---|---:|---:|---:|
+| `byte_ranges_to_lsp` (10 / 100 / 1000 ranges) | 2.75 µs | 27.1 µs | 272 µs |
+| Store `replace` → `colors_for` (10 / 100 / 500 fns) | 740 µs | 7.32 ms | 37.2 ms |
+| Incremental keystroke (10 / 50 / 200 / 500 fns) | 79 µs | 112 µs | 231 µs / 491 µs |
+| Full resync keystroke (same sizes) | 747 µs | 3.72 ms | 15.0 ms / 37.7 ms |
+
+### Position math (UTF-16 ↔ byte offsets)
+
+`position_to_byte` uses the document's line-start index → O(1)
+(~1.7–2.2 ns regardless of file size). `byte_to_position` scans from
+file start, so cost scales with cursor position:
+
+| File size (fns) | byte → pos (start / middle / end) |
+|---:|---:|
+| 10 | 430 ps / 897 ns / 1.78 µs |
+| 100 | 428 ps / 8.71 µs / 17.4 µs |
+| 1000 | 427 ps / 88.0 µs / 175 µs |
+
+### Micro-benches
+
+| Bench | Time |
+|---|---:|
+| `parse_hex` (6-item mixed corpus) | 174 ns |
+| `palette::lookup_named` (6-item mixed corpus) | 123 ns |
+
+### Edge cases + stress
+
+| Bench | Time |
+|---|---:|
+| Empty source | 270 ns |
+| 200 fns, zero color literals | 1.72 ms |
+| Palette-heavy 200 fns (`palettes::*::NAME`) | 6.45 ms |
+| UTF-8 multibyte 200 fns (emoji + CJK) | 3.79 ms |
+| Large source (2000 fns, ~512 KB) | 156 ms |
+| LSP keystroke session (200 fns, 50 edits) | 27.5 ms |
+| Concurrent store (4 threads × 100 mixed ops) | 597 ms |
+| Concurrent store (8 threads × 100 mixed ops) | 1.53 s |
+
+Concurrent benches are stochastic; treat as order-of-magnitude.
 
 ## Architecture
 
@@ -102,6 +185,12 @@ cargo build -p bevy-color-lsp --release
 Without nix: install Rust stable with `rustfmt`, `clippy`, and the
 `wasm32-wasip2` target (the `rust-toolchain.toml` does this
 automatically under `rustup`).
+
+Browse the API documentation locally:
+
+```sh
+cargo doc --workspace --no-deps --open
+```
 
 ## License
 
