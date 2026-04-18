@@ -1,13 +1,13 @@
 //! Tower-LSP server implementation.
 
-use crate::document::DocumentStore;
-use crate::num::f32_to_u8_clamped;
 use std::sync::Arc;
-use tower_lsp::jsonrpc::Result;
+
 #[allow(clippy::wildcard_imports)] // tower_lsp::lsp_types is a stable, well-scoped re-export
 use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer, LspService, Server};
+use tower_lsp::{jsonrpc::Result, Client, LanguageServer, LspService, Server};
 use tracing::instrument;
+
+use crate::{document::DocumentStore, num::f32_to_u8_clamped};
 
 /// Tower-LSP backend holding shared document state.
 #[derive(Debug)]

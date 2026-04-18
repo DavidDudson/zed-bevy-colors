@@ -4,14 +4,18 @@
 //! All conversion helpers in this module work with byte offsets internally
 //! and translate to/from UTF-16 only at the boundary.
 
-use crate::detectors::{detect_all, detect_in_range, ColorMatch};
-use crate::error::{Error, Result};
-use crate::num::{u32_to_usize, usize_to_u32_sat};
-use crate::parser::parse_incremental;
-use parking_lot::Mutex;
 use std::collections::HashMap;
+
+use parking_lot::Mutex;
 use tower_lsp::lsp_types::{Position, Range, Url};
 use tree_sitter::{InputEdit, Point, Tree};
+
+use crate::{
+    detectors::{detect_all, detect_in_range, ColorMatch},
+    error::{Error, Result},
+    num::{u32_to_usize, usize_to_u32_sat},
+    parser::parse_incremental,
+};
 
 /// Bytes of context around an edit to rescan, ensuring partial color
 /// expressions split by the edit boundary are still captured.

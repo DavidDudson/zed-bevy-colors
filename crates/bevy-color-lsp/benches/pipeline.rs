@@ -14,15 +14,16 @@
 // NOTE: `tracing::instrument` overhead is not benched here because it requires a build-flag
 // comparison (--features tracing/release_max_level_off) rather than a criterion measurement.
 
-use bevy_color_lsp::color::parse_hex;
-use bevy_color_lsp::detectors::detect_all;
-use bevy_color_lsp::document::{
-    byte_ranges_to_lsp, byte_to_position, position_to_byte, Document, DocumentStore,
-};
-use bevy_color_lsp::palette::lookup_named;
-use bevy_color_lsp::parser::parse;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
+
+use bevy_color_lsp::{
+    color::parse_hex,
+    detectors::detect_all,
+    document::{byte_ranges_to_lsp, byte_to_position, position_to_byte, Document, DocumentStore},
+    palette::lookup_named,
+    parser::parse,
+};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use tower_lsp::lsp_types::{Position, Range, Url};
 
 const COLORS_PER_FN: usize = 6;

@@ -1,11 +1,14 @@
 //! Detect Bevy `Color::<ctor>(...)` call expressions.
 
-use crate::color::{hsl_to_rgb, hsv_to_rgb, hwb_to_rgb, oklab_to_rgb, oklch_to_rgb, Rgba};
-use crate::detectors::ColorMatch;
-use crate::num::{f32_to_u8_clamped, u32_to_usize};
-use std::ops::Range;
-use std::sync::LazyLock;
+use std::{ops::Range, sync::LazyLock};
+
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
+
+use crate::{
+    color::{hsl_to_rgb, hsv_to_rgb, hwb_to_rgb, oklab_to_rgb, oklch_to_rgb, Rgba},
+    detectors::ColorMatch,
+    num::{f32_to_u8_clamped, u32_to_usize},
+};
 
 const QUERY_SRC: &str = r"
 (call_expression

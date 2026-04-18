@@ -1,11 +1,10 @@
 //! Detect palette color references such as `palettes::css::TOMATO`.
 
-use crate::detectors::ColorMatch;
-use crate::num::u32_to_usize;
-use crate::palette::lookup_palette;
-use std::ops::Range;
-use std::sync::LazyLock;
+use std::{ops::Range, sync::LazyLock};
+
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
+
+use crate::{detectors::ColorMatch, num::u32_to_usize, palette::lookup_palette};
 
 const QUERY_SRC: &str = r#"
 (scoped_identifier

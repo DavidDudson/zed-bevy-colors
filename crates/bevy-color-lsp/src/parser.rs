@@ -5,6 +5,7 @@
 //! point — see `# Panics` on individual functions.
 
 use std::cell::RefCell;
+
 use tree_sitter::{Parser, Tree};
 
 thread_local! {

@@ -3,9 +3,11 @@
 //! All byte offsets produced here are valid UTF-8 byte positions in the
 //! source string passed to [`detect_all`] or [`detect_in_range`].
 
-use crate::color::Rgba;
 use std::ops::Range;
+
 use tree_sitter::Tree;
+
+use crate::color::Rgba;
 
 pub mod bevy_const;
 pub mod bevy_ctor;

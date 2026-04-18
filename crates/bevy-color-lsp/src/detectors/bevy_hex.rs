@@ -1,11 +1,10 @@
 //! Detect Bevy `Color::hex("...")` call expressions.
 
-use crate::color::parse_hex;
-use crate::detectors::ColorMatch;
-use crate::num::u32_to_usize;
-use std::ops::Range;
-use std::sync::LazyLock;
+use std::{ops::Range, sync::LazyLock};
+
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
+
+use crate::{color::parse_hex, detectors::ColorMatch, num::u32_to_usize};
 
 const QUERY_SRC: &str = r#"
 (call_expression
