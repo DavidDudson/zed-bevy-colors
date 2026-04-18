@@ -9,3 +9,6 @@ extension.wasm
 .direnv/
 result
 result-*
+
+# local planning artifacts (specs + implementation plans)
+docs/superpowers/
