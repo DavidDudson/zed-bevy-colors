@@ -46,7 +46,7 @@ jobs:
           fi
 
       - name: Format PR comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
         run: |
           {
             echo '## Bench diff (criterion `--quick`, head vs base)'
@@ -61,7 +61,7 @@ jobs:
           } > bench-comment.md
 
       - name: Post comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
         uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: bench-compare
@@ -69,7 +69,7 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: bench-${{ github.sha }}
+          name: bench-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             target/criterion/**
             bench-output.txt
