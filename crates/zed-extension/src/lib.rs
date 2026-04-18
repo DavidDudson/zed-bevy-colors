@@ -1,12 +1,12 @@
 //! Zed extension shim — locates or downloads the `bevy-color-lsp` binary.
 //!
-//! There are no authored public items; the only public symbol is the
-//! `#[export_name = "init-extension"]` function emitted by
-//! `zed::register_extension!`, which has no Rust doc slot.
-#![warn(missing_docs)]
+//! The only public symbol is the `#[export_name = "init-extension"]`
+//! function emitted by `zed::register_extension!`, which has no Rust
+//! doc slot. `missing_docs` stays `allow` here because the plan
+//! carried `warn` to capture future authored pub items — but none
+//! exist today, and the warn/allow pair was a no-op.
 #![allow(missing_docs)]
-// register_extension! emits a pub extern "C" fn with no doc slot
-// `cargo_common_metadata`: readme/keywords/categories are managed at release time.
+// `cargo_common_metadata`: readme/keywords/categories managed at release time.
 #![allow(clippy::cargo_common_metadata)]
 // `multiple_crate_versions`: transitive dep conflict we don't control.
 #![allow(clippy::multiple_crate_versions)]

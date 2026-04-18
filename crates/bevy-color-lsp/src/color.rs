@@ -2,7 +2,7 @@
 
 use crate::num::f32_to_u32_floor_clamped;
 
-/// Linear sRGB color with a premultiplied-alpha channel, all components in `[0.0, 1.0]`.
+/// sRGB color with straight (non-premultiplied) alpha; all components in `[0.0, 1.0]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rgba {
     /// Red channel in `[0.0, 1.0]`.
