@@ -37,7 +37,9 @@
           RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
 
           shellHook = ''
-            if [ -d .git ] && [ ! -f .git/hooks/pre-commit ]; then
+            # Use -e (any path) rather than -d: git worktrees have `.git` as
+            # a regular file (gitdir: …), not a directory.
+            if [ -e .git ] && [ ! -e .git/hooks/pre-commit ]; then
               ${pkgs.lefthook}/bin/lefthook install >/dev/null
             fi
           '';
