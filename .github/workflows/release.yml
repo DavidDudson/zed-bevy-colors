@@ -27,7 +27,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path target/${{ matrix.target }}/release/bevy-color-lsp.exe -DestinationPath bevy-color-lsp-${{ matrix.target }}.zip
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             bevy-color-lsp-${{ matrix.target }}.tar.gz
