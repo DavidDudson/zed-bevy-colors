@@ -12,3 +12,6 @@ result-*
 
 # local planning artifacts (specs + implementation plans)
 docs/superpowers/
+
+# claude code runtime artifacts
+.claude/

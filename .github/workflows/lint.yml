@@ -15,13 +15,13 @@ jobs:
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   pedantic:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -38,7 +38,7 @@ jobs:
     env:
       RUSTDOCFLAGS: "-D warnings"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --no-deps
@@ -46,14 +46,14 @@ jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: crate-ci/typos@master
 
   nightly-fmt:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
@@ -62,7 +62,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
@@ -76,7 +76,7 @@ jobs:
       - run: |
           cargo llvm-cov --workspace --lcov --output-path lcov.info \
             --ignore-filename-regex 'palette\.rs|zed-extension'
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           files: lcov.info
           fail_ci_if_error: false
