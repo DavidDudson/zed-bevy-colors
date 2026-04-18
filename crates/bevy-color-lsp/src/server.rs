@@ -24,7 +24,7 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
+                    TextDocumentSyncKind::INCREMENTAL,
                 )),
                 color_provider: Some(ColorProviderCapability::Simple(true)),
                 ..Default::default()
@@ -52,8 +52,12 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        if let Some(change) = params.content_changes.into_iter().next() {
-            self.docs.update(&params.text_document.uri, change.text);
+        let uri = params.text_document.uri;
+        for change in params.content_changes {
+            match change.range {
+                Some(range) => self.docs.apply_change(&uri, Some(range), &change.text),
+                None => self.docs.replace(&uri, change.text),
+            }
         }
     }
 

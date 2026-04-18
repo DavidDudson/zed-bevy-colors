@@ -2,7 +2,7 @@ use bevy_color_lsp::detectors::detect_all;
 use bevy_color_lsp::document::{byte_ranges_to_lsp, Document, DocumentStore};
 use bevy_color_lsp::parser::parse;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use tower_lsp::lsp_types::Url;
+use tower_lsp::lsp_types::{Position, Range, Url};
 
 const COLORS_PER_FN: usize = 6;
 
@@ -111,7 +111,56 @@ fn bench_lsp_request_cycle(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(src.len() as u64));
         group.bench_with_input(BenchmarkId::from_parameter(n), &src, |b, src| {
             b.iter(|| {
-                store.update(&uri, src.clone());
+                store.replace(&uri, src.clone());
+                store.colors_for(&uri)
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_incremental_keystroke(c: &mut Criterion) {
+    let mut group = c.benchmark_group("incremental_keystroke");
+    for &n in &[10usize, 50, 200, 500] {
+        let src = synth_source(n);
+        group.throughput(Throughput::Bytes(src.len() as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &src, |b, src| {
+            let store = DocumentStore::default();
+            let uri = Url::parse("file:///bench.rs").unwrap();
+            store.open(uri.clone(), src.clone());
+            let _ = store.colors_for(&uri);
+            let mid_line = (src.matches('\n').count() / 2) as u32;
+            let edit_range = Range {
+                start: Position {
+                    line: mid_line,
+                    character: 0,
+                },
+                end: Position {
+                    line: mid_line,
+                    character: 0,
+                },
+            };
+            b.iter(|| {
+                store.apply_change(&uri, Some(edit_range), " ");
+                store.colors_for(&uri)
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_full_resync(c: &mut Criterion) {
+    let mut group = c.benchmark_group("full_resync_keystroke");
+    for &n in &[10usize, 50, 200, 500] {
+        let src = synth_source(n);
+        group.throughput(Throughput::Bytes(src.len() as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &src, |b, src| {
+            let store = DocumentStore::default();
+            let uri = Url::parse("file:///bench.rs").unwrap();
+            store.open(uri.clone(), src.clone());
+            let _ = store.colors_for(&uri);
+            b.iter(|| {
+                store.replace(&uri, src.clone());
                 store.colors_for(&uri)
             });
         });
@@ -127,5 +176,7 @@ criterion_group!(
     bench_cached_pipeline,
     bench_byte_ranges,
     bench_lsp_request_cycle,
+    bench_incremental_keystroke,
+    bench_full_resync,
 );
 criterion_main!(benches);

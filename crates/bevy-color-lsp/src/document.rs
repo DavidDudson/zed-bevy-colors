@@ -1,21 +1,61 @@
 use crate::detectors::{detect_all, ColorMatch};
-use crate::parser::parse;
+use crate::parser::parse_incremental;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tower_lsp::lsp_types::{Position, Range, Url};
+use tree_sitter::{InputEdit, Point, Tree};
 
 pub struct Document {
     pub text: String,
+    line_starts: Vec<usize>,
+    tree: Option<Tree>,
     cache: Option<Vec<(Range, ColorMatch)>>,
 }
 
 impl Document {
     pub fn new(text: String) -> Self {
-        Self { text, cache: None }
+        let line_starts = compute_line_starts(&text);
+        Self {
+            text,
+            line_starts,
+            tree: None,
+            cache: None,
+        }
     }
 
     pub fn set_text(&mut self, text: String) {
         self.text = text;
+        self.line_starts = compute_line_starts(&self.text);
+        self.tree = None;
+        self.cache = None;
+    }
+
+    pub fn apply_change(&mut self, range: Option<Range>, new_text: &str) {
+        let Some(range) = range else {
+            self.set_text(new_text.to_string());
+            return;
+        };
+        let start_byte = position_to_byte(&self.text, &self.line_starts, range.start);
+        let old_end_byte = position_to_byte(&self.text, &self.line_starts, range.end);
+        let new_end_byte = start_byte + new_text.len();
+
+        let start_position = lsp_to_point(range.start);
+        let old_end_position = lsp_to_point(range.end);
+
+        self.text.replace_range(start_byte..old_end_byte, new_text);
+        self.line_starts = compute_line_starts(&self.text);
+        let new_end_position = byte_to_point(&self.text, new_end_byte);
+
+        if let Some(tree) = self.tree.as_mut() {
+            tree.edit(&InputEdit {
+                start_byte,
+                old_end_byte,
+                new_end_byte,
+                start_position,
+                old_end_position,
+                new_end_position,
+            });
+        }
         self.cache = None;
     }
 
@@ -28,11 +68,13 @@ impl Document {
         computed
     }
 
-    fn compute_colors(&self) -> Vec<(Range, ColorMatch)> {
-        let Some(tree) = parse(&self.text) else {
+    fn compute_colors(&mut self) -> Vec<(Range, ColorMatch)> {
+        let new_tree = parse_incremental(&self.text, self.tree.as_ref());
+        self.tree = new_tree;
+        let Some(tree) = self.tree.as_ref() else {
             return Vec::new();
         };
-        let mut matches = detect_all(&tree, &self.text);
+        let mut matches = detect_all(tree, &self.text);
         matches.sort_by_key(|m| (m.start_byte, m.end_byte));
         let ranges = byte_ranges_to_lsp(&self.text, &matches);
         matches
@@ -41,6 +83,67 @@ impl Document {
             .map(|(m, r)| (r, m))
             .collect()
     }
+}
+
+fn compute_line_starts(text: &str) -> Vec<usize> {
+    let mut starts = vec![0usize];
+    for (i, b) in text.bytes().enumerate() {
+        if b == b'\n' {
+            starts.push(i + 1);
+        }
+    }
+    starts
+}
+
+fn lsp_to_point(p: Position) -> Point {
+    Point {
+        row: p.line as usize,
+        column: p.character as usize,
+    }
+}
+
+fn byte_to_point(text: &str, byte: usize) -> Point {
+    let mut row = 0usize;
+    let mut last_line_start = 0usize;
+    for (i, b) in text.bytes().enumerate() {
+        if i >= byte {
+            break;
+        }
+        if b == b'\n' {
+            row += 1;
+            last_line_start = i + 1;
+        }
+    }
+    let column = text
+        .get(last_line_start..byte.min(text.len()))
+        .map(|s| s.encode_utf16().count())
+        .unwrap_or(0);
+    Point { row, column }
+}
+
+pub fn position_to_byte(text: &str, line_starts: &[usize], pos: Position) -> usize {
+    let line = pos.line as usize;
+    if line >= line_starts.len() {
+        return text.len();
+    }
+    let line_start = line_starts[line];
+    let line_end = line_starts
+        .get(line + 1)
+        .copied()
+        .map(|n| n.saturating_sub(1))
+        .unwrap_or(text.len());
+    let line_slice = &text[line_start..line_end];
+
+    let mut col_utf16 = 0u32;
+    let mut byte_offset = 0usize;
+    for ch in line_slice.chars() {
+        if col_utf16 >= pos.character {
+            break;
+        }
+        col_utf16 += ch.len_utf16() as u32;
+        byte_offset += ch.len_utf8();
+    }
+    line_start + byte_offset
 }
 
 pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
@@ -137,9 +240,15 @@ impl DocumentStore {
         self.docs.lock().unwrap().insert(uri, Document::new(text));
     }
 
-    pub fn update(&self, uri: &Url, text: String) {
+    pub fn replace(&self, uri: &Url, text: String) {
         if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
             doc.set_text(text);
+        }
+    }
+
+    pub fn apply_change(&self, uri: &Url, range: Option<Range>, text: &str) {
+        if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
+            doc.apply_change(range, text);
         }
     }
 
@@ -183,6 +292,18 @@ mod tests {
     }
 
     #[test]
+    fn position_to_byte_round_trip() {
+        let text = "ab\nc\u{1F600}de\nfg";
+        let starts = compute_line_starts(text);
+        let p = Position {
+            line: 1,
+            character: 3,
+        };
+        let byte = position_to_byte(text, &starts, p);
+        assert_eq!(&text[byte..byte + 1], "d");
+    }
+
+    #[test]
     fn store_open_then_colors() {
         let store = DocumentStore::default();
         let uri = Url::parse("file:///t.rs").unwrap();
@@ -192,13 +313,52 @@ mod tests {
     }
 
     #[test]
-    fn cache_invalidates_on_update() {
+    fn cache_invalidates_on_replace() {
         let store = DocumentStore::default();
         let uri = Url::parse("file:///t.rs").unwrap();
         store.open(uri.clone(), "Color::WHITE".to_string());
         assert_eq!(store.colors_for(&uri).len(), 1);
-        store.update(&uri, "Color::BLACK; Color::WHITE".to_string());
+        store.replace(&uri, "Color::BLACK; Color::WHITE".to_string());
         assert_eq!(store.colors_for(&uri).len(), 2);
+    }
+
+    #[test]
+    fn incremental_edit_updates_colors() {
+        let mut doc = Document::new("let a = Color::WHITE;".to_string());
+        assert_eq!(doc.colors().len(), 1);
+        let range = Range {
+            start: Position {
+                line: 0,
+                character: 21,
+            },
+            end: Position {
+                line: 0,
+                character: 21,
+            },
+        };
+        doc.apply_change(Some(range), " let b = Color::BLACK;");
+        let cs = doc.colors();
+        assert_eq!(cs.len(), 2);
+    }
+
+    #[test]
+    fn incremental_replace_inside_literal() {
+        let mut doc = Document::new("let a = Color::srgb(1.0, 0.0, 0.0);".to_string());
+        let cs = doc.colors();
+        assert!((cs[0].1.color.r - 1.0).abs() < 0.01);
+        let range = Range {
+            start: Position {
+                line: 0,
+                character: 20,
+            },
+            end: Position {
+                line: 0,
+                character: 23,
+            },
+        };
+        doc.apply_change(Some(range), "0.0");
+        let cs = doc.colors();
+        assert!(cs[0].1.color.r.abs() < 0.01);
     }
 
     #[test]
