@@ -1,8 +1,6 @@
 name: Bench
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -11,32 +9,10 @@ env:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   bench:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Compile benches
-        run: cargo bench -p bevy-color-lsp --no-run
-      - name: Run benches (quick)
-        run: |
-          cargo bench -p bevy-color-lsp --bench pipeline -- \
-            --quick --warm-up-time 1 --measurement-time 3 \
-            --output-format bencher \
-            | tee bench-output.txt
-      - uses: actions/upload-artifact@v6
-        with:
-          name: criterion-report-${{ github.sha }}
-          path: |
-            target/criterion/**
-            bench-output.txt
-          retention-days: 30
-
-  bench-compare:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -44,18 +20,57 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+
+      - name: Compile benches
+        run: cargo bench -p bevy-color-lsp --no-run
+
       - name: Bench base branch
+        if: github.event_name == 'pull_request'
         run: |
           git checkout ${{ github.event.pull_request.base.sha }}
           cargo bench -p bevy-color-lsp --bench pipeline -- \
             --quick --warm-up-time 1 --measurement-time 3 --save-baseline base
-      - name: Bench PR head + compare
+
+      - name: Bench head
         run: |
-          git checkout ${{ github.event.pull_request.head.sha }}
-          cargo bench -p bevy-color-lsp --bench pipeline -- \
-            --quick --warm-up-time 1 --measurement-time 3 --baseline base \
-            | tee bench-diff.txt
+          git checkout ${{ github.event.pull_request.head.sha || github.sha }}
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            cargo bench -p bevy-color-lsp --bench pipeline -- \
+              --quick --warm-up-time 1 --measurement-time 3 --baseline base \
+              | tee bench-output.txt
+          else
+            cargo bench -p bevy-color-lsp --bench pipeline -- \
+              --quick --warm-up-time 1 --measurement-time 3 \
+              --output-format bencher \
+              | tee bench-output.txt
+          fi
+
+      - name: Format PR comment
+        if: github.event_name == 'pull_request'
+        run: |
+          {
+            echo '## Bench diff (criterion `--quick`, head vs base)'
+            echo
+            echo '<details><summary>Full output</summary>'
+            echo
+            echo '```'
+            cat bench-output.txt
+            echo '```'
+            echo
+            echo '</details>'
+          } > bench-comment.md
+
+      - name: Post comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: bench-compare
+          path: bench-comment.md
+
       - uses: actions/upload-artifact@v6
         with:
-          name: bench-diff-${{ github.sha }}
-          path: bench-diff.txt
+          name: bench-${{ github.sha }}
+          path: |
+            target/criterion/**
+            bench-output.txt
+          retention-days: 30
