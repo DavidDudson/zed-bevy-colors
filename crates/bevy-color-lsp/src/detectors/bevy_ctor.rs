@@ -238,4 +238,152 @@ mod tests {
         let m = detect_str("Color::oklab(0.5, -0.1, 0.1)");
         assert_eq!(m.len(), 1);
     }
+
+    // --- Color::srgba / srgba_u8 ---
+
+    #[test]
+    fn srgba_with_alpha() {
+        let m = detect_str("Color::srgba(1.0, 0.0, 0.5, 0.8)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01);
+        assert!((m[0].color.a - 0.8).abs() < 0.01);
+    }
+
+    #[test]
+    fn srgba_u8_with_alpha() {
+        let m = detect_str("Color::srgba_u8(255, 0, 128, 200)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01);
+        assert!((m[0].color.a - 200.0 / 255.0).abs() < 0.01);
+    }
+
+    // --- LinearRgba / linear_rgb / linear_rgba ---
+
+    #[test]
+    fn linear_rgb_color() {
+        let m = detect_str("Color::linear_rgb(1.0, 1.0, 1.0)");
+        assert_eq!(m.len(), 1);
+        // linear white -> sRGB white
+        assert!((m[0].color.r - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn linear_rgba_color() {
+        let m = detect_str("Color::linear_rgba(1.0, 1.0, 1.0, 0.5)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.a - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn linear_rgba_struct_rgb() {
+        let m = detect_str("LinearRgba::rgb(0.5, 0.5, 0.5)");
+        assert_eq!(m.len(), 1);
+        // 0.5 linear -> ~0.735 sRGB
+        assert!(m[0].color.r > 0.7 && m[0].color.r < 0.76);
+    }
+
+    #[test]
+    fn linear_rgba_struct_new() {
+        let m = detect_str("LinearRgba::new(1.0, 0.0, 0.0, 1.0)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01);
+        assert!((m[0].color.g).abs() < 0.01);
+    }
+
+    // --- Hsla::new ---
+
+    #[test]
+    fn hsla_struct_new() {
+        let m = detect_str("Hsla::new(0.0, 1.0, 0.5, 0.7)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01); // red hue
+        assert!((m[0].color.a - 0.7).abs() < 0.01);
+    }
+
+    // --- Color::hsla ---
+
+    #[test]
+    fn hsla_color() {
+        let m = detect_str("Color::hsla(120.0, 1.0, 0.5, 0.5)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.g - 1.0).abs() < 0.01); // green
+        assert!((m[0].color.a - 0.5).abs() < 0.01);
+    }
+
+    // --- Color::hsv / Hsva::new ---
+
+    #[test]
+    fn hsv_color() {
+        let m = detect_str("Color::hsv(240.0, 1.0, 1.0)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.b - 1.0).abs() < 0.01); // blue
+    }
+
+    #[test]
+    fn hsva_struct_new() {
+        let m = detect_str("Hsva::new(240.0, 1.0, 1.0, 0.6)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.b - 1.0).abs() < 0.01);
+        assert!((m[0].color.a - 0.6).abs() < 0.01);
+    }
+
+    // --- Color::hwb / Hwba::new ---
+
+    #[test]
+    fn hwb_color() {
+        let m = detect_str("Color::hwb(0.0, 0.0, 0.0)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01); // red
+    }
+
+    #[test]
+    fn hwba_struct_new() {
+        let m = detect_str("Hwba::new(0.0, 0.5, 0.5, 1.0)");
+        assert_eq!(m.len(), 1);
+        // w+b=1 => gray 0.5
+        assert!((m[0].color.r - 0.5).abs() < 0.01);
+    }
+
+    // --- Oklaba::new / Color::oklch / Oklcha::new ---
+
+    #[test]
+    fn oklaba_struct_new() {
+        let m = detect_str("Oklaba::new(0.5, 0.0, 0.0, 1.0)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.a - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn oklch_color() {
+        let m = detect_str("Color::oklch(0.5, 0.0, 0.0)");
+        assert_eq!(m.len(), 1);
+        // zero chroma => near-gray
+        assert!((m[0].color.r - m[0].color.g).abs() < 0.05);
+    }
+
+    #[test]
+    fn oklcha_struct_new() {
+        let m = detect_str("Oklcha::new(0.5, 0.0, 0.0, 0.9)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.a - 0.9).abs() < 0.01);
+    }
+
+    // --- Srgba::rgba_u8 ---
+
+    #[test]
+    fn srgba_rgba_u8_struct() {
+        let m = detect_str("Srgba::rgba_u8(255, 128, 0, 200)");
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01);
+        assert!((m[0].color.g - 128.0 / 255.0).abs() < 0.01);
+        assert!((m[0].color.a - 200.0 / 255.0).abs() < 0.01);
+    }
+
+    // --- unrecognised type/ctor yields no match ---
+
+    #[test]
+    fn unknown_ctor_yields_no_match() {
+        let m = detect_str("Color::unknown_ctor(1.0, 0.0, 0.0)");
+        assert!(m.is_empty());
+    }
 }

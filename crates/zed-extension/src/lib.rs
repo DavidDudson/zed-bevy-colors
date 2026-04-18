@@ -5,6 +5,13 @@
 //! doc slot. `missing_docs` stays `allow` here because the plan
 //! carried `warn` to capture future authored pub items — but none
 //! exist today, and the warn/allow pair was a no-op.
+//!
+//! # Coverage note
+//!
+//! This crate compiles to a WASM module and is exercised exclusively through
+//! the Zed extension runtime. There is no `cargo test` path into its entry
+//! point, so `cargo llvm-cov` reports 0% line coverage. This is expected and
+//! intentional — do not add fake unit tests to inflate the number.
 #![allow(missing_docs)]
 // `cargo_common_metadata`: readme/keywords/categories managed at release time.
 #![allow(clippy::cargo_common_metadata)]

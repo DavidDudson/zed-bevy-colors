@@ -1,4 +1,14 @@
 //! Named color lookup tables: CSS, Tailwind, and basic palettes.
+//!
+//! # Coverage note
+//!
+//! The `css_named` and `tailwind_hex` functions consist almost entirely of
+//! large `match` arms, one per named color. These are pure lookup data — the
+//! dispatch logic is covered by the `css_tomato`, `tailwind_blue_500`, and
+//! `lookup_palette_dispatch` unit tests. Adding one test per color entry
+//! would be redundant busywork with no bug-detection value; per-entry
+//! coverage is explicitly not pursued. The resulting low line-coverage
+//! percentage on this file is expected and intentional.
 
 use crate::color::{parse_hex, Rgba};
 

@@ -272,4 +272,148 @@ mod tests {
         approx(c.g, 1.0);
         approx(c.b, 1.0);
     }
+
+    // --- hex ---
+
+    #[test]
+    fn hex_four_rgba() {
+        // #RGBA short form: each nibble doubled
+        let c = parse_hex("#f80f").unwrap();
+        approx(c.r, 1.0);  // 0xff / 255
+        approx(c.g, 0.533); // 0x88 / 255
+        approx(c.b, 0.0);  // 0x00 / 255
+        approx(c.a, 1.0);  // 0xff / 255
+    }
+
+    // --- linear_to_srgb branches ---
+
+    #[test]
+    fn linear_to_srgb_negative_clamps_to_zero() {
+        // c <= 0.0 branch
+        let c = Rgba::from_linear(-1.0, 0.0, 0.0, 1.0);
+        approx(c.r, 0.0);
+        approx(c.g, 0.0);
+    }
+
+    #[test]
+    fn linear_to_srgb_small_value() {
+        // c <= 0.003_130_8 branch: sRGB linear segment
+        let c = Rgba::from_linear(0.001, 0.0, 0.0, 1.0);
+        approx(c.r, 0.001 * 12.92);
+    }
+
+    #[test]
+    fn linear_to_srgb_mid_value() {
+        // 0.003_130_8 < c < 1.0 branch: power curve
+        let c = Rgba::from_linear(0.5, 0.0, 0.0, 1.0);
+        let expected = 1.055f32 * 0.5f32.powf(1.0 / 2.4) - 0.055;
+        approx(c.r, expected);
+    }
+
+    // --- Rgba::clamped ---
+
+    #[test]
+    fn clamped_out_of_range() {
+        let c = Rgba::new(2.0, -0.5, 0.5, 1.5).clamped();
+        approx(c.r, 1.0);
+        approx(c.g, 0.0);
+        approx(c.b, 0.5);
+        approx(c.a, 1.0);
+    }
+
+    // --- hsl_to_rgb: achromatic (s == 0) and l >= 0.5 branches ---
+
+    #[test]
+    fn hsl_achromatic() {
+        // s == 0 => gray
+        let c = hsl_to_rgb(0.0, 0.0, 0.6, 1.0);
+        approx(c.r, 0.6);
+        approx(c.g, 0.6);
+        approx(c.b, 0.6);
+    }
+
+    #[test]
+    fn hsl_high_lightness() {
+        // l >= 0.5 branch for q computation
+        let c = hsl_to_rgb(240.0, 1.0, 0.75, 1.0); // bright blue
+        approx(c.r, 0.5);
+        approx(c.g, 0.5);
+        approx(c.b, 1.0);
+    }
+
+    // --- hue_to_rgb all four t branches ---
+    // hsl_to_rgb exercises hue_to_rgb indirectly; these cases hit the
+    // t < 0 and t > 1 normalisation paths and the final p fallthrough.
+
+    #[test]
+    fn hue_to_rgb_all_branches() {
+        // h=300° (magenta): hits t<0 (blue channel) and t>1 corrections
+        let c = hsl_to_rgb(300.0, 1.0, 0.5, 1.0);
+        approx(c.r, 1.0);
+        approx(c.g, 0.0);
+        approx(c.b, 1.0);
+    }
+
+    // --- hwb_to_rgb gray path ---
+
+    #[test]
+    fn hwb_gray_path() {
+        // w + b >= 1.0  =>  achromatic
+        let c = hwb_to_rgb(120.0, 0.6, 0.6, 1.0);
+        let expected = 0.6 / (0.6 + 0.6);
+        approx(c.r, expected);
+        approx(c.g, expected);
+        approx(c.b, expected);
+    }
+
+    #[test]
+    fn hwb_normal_path() {
+        // w + b < 1.0 => chromatic
+        let c = hwb_to_rgb(120.0, 0.0, 0.0, 1.0); // pure green
+        approx(c.r, 0.0);
+        approx(c.g, 1.0);
+        approx(c.b, 0.0);
+    }
+
+    // --- oklab / oklch ---
+
+    #[test]
+    fn oklab_neutral_gray() {
+        // l=0.5, a=0, b=0 => near-gray
+        let c = oklab_to_rgb(0.5, 0.0, 0.0, 1.0);
+        // not testing exact value — just that r ≈ g ≈ b and in [0,1]
+        assert!((c.r - c.g).abs() < 0.05, "r≈g for neutral oklab");
+        assert!((c.g - c.b).abs() < 0.05, "g≈b for neutral oklab");
+        assert!(c.a > 0.99);
+    }
+
+    #[test]
+    fn oklch_zero_chroma_is_gray() {
+        // c=0 => same as neutral oklab
+        let c = oklch_to_rgb(0.5, 0.0, 0.0, 1.0);
+        assert!((c.r - c.g).abs() < 0.05);
+        assert!((c.g - c.b).abs() < 0.05);
+        assert!(c.a > 0.99);
+    }
+
+    // --- hsv_to_rgb: hit all match arms via sector coverage ---
+
+    #[test]
+    fn hsv_sectors() {
+        // sector 0: h=30 (orange)
+        let c = hsv_to_rgb(30.0, 1.0, 1.0, 1.0);
+        assert!(c.r > c.g && c.g > 0.0 && c.b < 0.01);
+        // sector 2: h=150 (spring green)
+        let c = hsv_to_rgb(150.0, 1.0, 1.0, 1.0);
+        assert!(c.g > 0.99 && c.r < 0.01 && c.b > 0.0);
+        // sector 3: h=210 (azure)
+        let c = hsv_to_rgb(210.0, 1.0, 1.0, 1.0);
+        assert!(c.b > c.g && c.r < 0.01);
+        // sector 4: h=270 (violet)
+        let c = hsv_to_rgb(270.0, 1.0, 1.0, 1.0);
+        assert!(c.b > 0.99 && c.r > 0.0 && c.g < 0.01);
+        // sector 5: h=330 (rose)
+        let c = hsv_to_rgb(330.0, 1.0, 1.0, 1.0);
+        assert!(c.r > 0.99 && c.b > 0.0 && c.g < 0.01);
+    }
 }
