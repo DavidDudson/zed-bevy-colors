@@ -1,0 +1,8 @@
+[files]
+# palette.rs is a ~350-line hex lookup table; typos false-positives on hex
+# sequences like "ede9fe" (VIOLET-100) and "a21caf" (FUCHSIA-700).
+extend-exclude = [
+    "crates/bevy-color-lsp/src/palette.rs",
+    "CHANGELOG.md",
+    "target/",
+]
