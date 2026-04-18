@@ -36,10 +36,7 @@ impl BevyColorExtension {
         );
         let release = zed::latest_github_release(
             REPO,
-            zed::GithubReleaseOptions {
-                require_assets: true,
-                pre_release: false,
-            },
+            zed::GithubReleaseOptions { require_assets: true, pre_release: false },
         )?;
 
         let (platform, arch) = zed::current_platform();
@@ -112,9 +109,7 @@ fn cleanup_old_versions(keep_dir: &str) {
 
 impl zed::Extension for BevyColorExtension {
     fn new() -> Self {
-        Self {
-            cached_binary_path: None,
-        }
+        Self { cached_binary_path: None }
     }
 
     fn language_server_command(
@@ -122,11 +117,7 @@ impl zed::Extension for BevyColorExtension {
         id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Command> {
-        Ok(Command {
-            command: self.binary_path(id, worktree)?,
-            args: Vec::new(),
-            env: Vec::new(),
-        })
+        Ok(Command { command: self.binary_path(id, worktree)?, args: Vec::new(), env: Vec::new() })
     }
 }
 

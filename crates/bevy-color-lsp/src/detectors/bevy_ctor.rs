@@ -12,6 +12,7 @@ const QUERY_SRC: &str = r#"
   arguments: (arguments) @args) @call
 "#;
 
+#[allow(clippy::expect_used)]
 static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_ctor query")
 });
@@ -46,8 +47,8 @@ pub fn detect(
     while let Some(m) = matches.next() {
         let mut ty = "";
         let mut ctor = "";
-        let mut args: Option<Node> = None;
-        let mut call: Option<Node> = None;
+        let mut args: Option<Node<'_>> = None;
+        let mut call: Option<Node<'_>> = None;
         for cap in m.captures {
             let name = &QUERY.capture_names()[cap.index as usize];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
@@ -75,7 +76,7 @@ pub fn detect(
     }
 }
 
-fn collect_number_args(args: Node, bytes: &[u8]) -> Vec<f32> {
+fn collect_number_args(args: Node<'_>, bytes: &[u8]) -> Vec<f32> {
     let mut nums = Vec::new();
     let mut walker = args.walk();
     for child in args.named_children(&mut walker) {
@@ -86,7 +87,7 @@ fn collect_number_args(args: Node, bytes: &[u8]) -> Vec<f32> {
     nums
 }
 
-fn parse_number(node: Node, bytes: &[u8]) -> Option<f32> {
+fn parse_number(node: Node<'_>, bytes: &[u8]) -> Option<f32> {
     let kind = node.kind();
     if kind == "float_literal" || kind == "integer_literal" || kind == "negative_literal" {
         let text = node.utf8_text(bytes).ok()?;
@@ -152,12 +153,9 @@ fn build_color(ty: &str, ctor: &str, n: &[f32]) -> Option<Rgba> {
                 Some(Rgba::new(r, g, b, a))
             }
         }
-        ("Color", "srgb_u8") | ("Srgba", "rgb_u8") => Some(Rgba::from_u8(
-            get(0)? as u8,
-            get(1)? as u8,
-            get(2)? as u8,
-            255,
-        )),
+        ("Color", "srgb_u8") | ("Srgba", "rgb_u8") => {
+            Some(Rgba::from_u8(get(0)? as u8, get(1)? as u8, get(2)? as u8, 255))
+        }
         ("Color", "srgba_u8") | ("Srgba", "rgba_u8") => Some(Rgba::from_u8(
             get(0)? as u8,
             get(1)? as u8,
@@ -181,6 +179,7 @@ fn build_color(ty: &str, ctor: &str, n: &[f32]) -> Option<Rgba> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::parser::parse;

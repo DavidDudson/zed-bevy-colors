@@ -6,9 +6,36 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.87"
 license = "MIT"
 repository = "https://github.com/DavidDudson/zed-bevy-colors"
 authors = ["David Dudson <davidjohndudson@gmail.com>"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+# Pedantic/nursery/cargo stay opt-in so the fast CI path (`ci.yml`,
+# which runs clippy with `-D warnings`) is not broken by opinionated
+# nudges. `lint.yml` opts in explicitly via `-W clippy::pedantic` etc.
+pedantic = { level = "allow", priority = -1 }
+nursery = { level = "allow", priority = -1 }
+cargo = { level = "allow", priority = -1 }
+# Warn-level in workspace + `-D warnings` in fast CI blocks new prod
+# unwraps/expects/panics. Tests/benches opt out via file-level allow.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
 
 [profile.release]
 lto = "thin"

@@ -14,6 +14,7 @@ const QUERY_SRC: &str = r#"
   (#match? @name "^[A-Z][A-Z0-9_]*$")) @full
 "#;
 
+#[allow(clippy::expect_used)]
 static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile palette query")
 });
@@ -55,16 +56,13 @@ pub fn detect(
             continue;
         }
         if let Some(color) = lookup_palette(module, name) {
-            out.push(ColorMatch {
-                start_byte: full_start,
-                end_byte: full_end,
-                color,
-            });
+            out.push(ColorMatch { start_byte: full_start, end_byte: full_end, color });
         }
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::parser::parse;

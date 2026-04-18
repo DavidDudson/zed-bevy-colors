@@ -2,9 +2,7 @@ use crate::color::{parse_hex, Rgba};
 
 pub fn lookup_named(name: &str) -> Option<Rgba> {
     let upper = name.to_ascii_uppercase();
-    css_named(&upper)
-        .or_else(|| basic_named(&upper))
-        .or_else(|| tailwind_named(&upper))
+    css_named(&upper).or_else(|| basic_named(&upper)).or_else(|| tailwind_named(&upper))
 }
 
 pub fn lookup_palette(module: &str, name: &str) -> Option<Rgba> {
@@ -441,6 +439,7 @@ fn tailwind_hex(hue: &str, shade: &str) -> Option<&'static str> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

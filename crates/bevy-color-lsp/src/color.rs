@@ -16,12 +16,7 @@ impl Rgba {
     pub const NONE: Self = Self::new(0.0, 0.0, 0.0, 0.0);
 
     pub fn from_u8(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self::new(
-            r as f32 / 255.0,
-            g as f32 / 255.0,
-            b as f32 / 255.0,
-            a as f32 / 255.0,
-        )
+        Self::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a as f32 / 255.0)
     }
 
     pub fn from_linear(r: f32, g: f32, b: f32, a: f32) -> Self {
@@ -81,11 +76,7 @@ pub fn hsl_to_rgb(h: f32, s: f32, l: f32, a: f32) -> Rgba {
     if s == 0.0 {
         return Rgba::new(l, l, l, a);
     }
-    let q = if l < 0.5 {
-        l * (1.0 + s)
-    } else {
-        l + s - l * s
-    };
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
     let p = 2.0 * l - q;
     Rgba::new(
         hue_to_rgb(p, q, h + 1.0 / 3.0),
@@ -141,12 +132,7 @@ pub fn hwb_to_rgb(h: f32, w: f32, b: f32, a: f32) -> Rgba {
         return Rgba::new(g, g, g, a);
     }
     let rgb = hsv_to_rgb(h, 1.0, 1.0, a);
-    Rgba::new(
-        rgb.r * (1.0 - w - b) + w,
-        rgb.g * (1.0 - w - b) + w,
-        rgb.b * (1.0 - w - b) + w,
-        a,
-    )
+    Rgba::new(rgb.r * (1.0 - w - b) + w, rgb.g * (1.0 - w - b) + w, rgb.b * (1.0 - w - b) + w, a)
 }
 
 pub fn oklab_to_rgb(l: f32, a_chan: f32, b_chan: f32, alpha: f32) -> Rgba {
@@ -168,6 +154,7 @@ pub fn oklch_to_rgb(l: f32, c: f32, h: f32, a: f32) -> Rgba {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 

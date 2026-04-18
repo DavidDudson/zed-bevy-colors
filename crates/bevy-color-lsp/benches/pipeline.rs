@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc
+)]
+
 use bevy_color_lsp::detectors::detect_all;
 use bevy_color_lsp::document::{byte_ranges_to_lsp, Document, DocumentStore};
 use bevy_color_lsp::parser::parse;
@@ -131,14 +139,8 @@ fn bench_incremental_keystroke(c: &mut Criterion) {
             let _ = store.colors_for(&uri);
             let mid_line = (src.matches('\n').count() / 2) as u32;
             let edit_range = Range {
-                start: Position {
-                    line: mid_line,
-                    character: 0,
-                },
-                end: Position {
-                    line: mid_line,
-                    character: 0,
-                },
+                start: Position { line: mid_line, character: 0 },
+                end: Position { line: mid_line, character: 0 },
             };
             b.iter(|| {
                 store.apply_change(&uri, Some(edit_range), " ");

@@ -4,6 +4,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+#[derive(Debug)]
 pub struct Backend {
     client: Client,
     docs: Arc<DocumentStore>,
@@ -11,10 +12,7 @@ pub struct Backend {
 
 impl Backend {
     fn new(client: Client) -> Self {
-        Self {
-            client,
-            docs: Arc::new(DocumentStore::default()),
-        }
+        Self { client, docs: Arc::new(DocumentStore::default()) }
     }
 }
 
@@ -37,9 +35,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        self.client
-            .log_message(MessageType::INFO, "bevy-color-lsp ready")
-            .await;
+        self.client.log_message(MessageType::INFO, "bevy-color-lsp ready").await;
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -47,8 +43,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.docs
-            .open(params.text_document.uri, params.text_document.text);
+        self.docs.open(params.text_document.uri, params.text_document.text);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -91,17 +86,11 @@ impl LanguageServer for Backend {
         let g = (c.green * 255.0).round() as u8;
         let b = (c.blue * 255.0).round() as u8;
         let label = if c.alpha < 1.0 {
-            format!(
-                "Color::srgba({:.3}, {:.3}, {:.3}, {:.3})",
-                c.red, c.green, c.blue, c.alpha
-            )
+            format!("Color::srgba({:.3}, {:.3}, {:.3}, {:.3})", c.red, c.green, c.blue, c.alpha)
         } else {
             format!("Color::srgb_u8({}, {}, {})", r, g, b)
         };
-        Ok(vec![ColorPresentation {
-            label,
-            ..Default::default()
-        }])
+        Ok(vec![ColorPresentation { label, ..Default::default() }])
     }
 }
 

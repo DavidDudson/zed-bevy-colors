@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc
+)]
+
 use serde_json::{json, Value};
 use std::process::Stdio;
 use std::time::Duration;
@@ -74,10 +82,7 @@ async fn handshake_and_document_color() {
     )
     .await;
     let init_resp = read_until_response_id(&mut reader, 1).await;
-    assert_eq!(
-        init_resp["result"]["capabilities"]["colorProvider"],
-        json!(true)
-    );
+    assert_eq!(init_resp["result"]["capabilities"]["colorProvider"], json!(true));
 
     write_msg(
         &mut stdin,
@@ -122,12 +127,7 @@ async fn handshake_and_document_color() {
     .await;
     let resp = read_until_response_id(&mut reader, 2).await;
     let colors = resp["result"].as_array().expect("colors array");
-    assert_eq!(
-        colors.len(),
-        2,
-        "expected srgb + WHITE colors, got {:?}",
-        colors
-    );
+    assert_eq!(colors.len(), 2, "expected srgb + WHITE colors, got {:?}", colors);
 
     let first = &colors[0];
     let red = first["color"]["red"].as_f64().unwrap();

@@ -9,6 +9,7 @@ use tree_sitter::{InputEdit, Point, Tree};
 /// expressions split by the edit boundary are still captured.
 const RESCAN_CONTEXT: usize = 256;
 
+#[derive(Debug)]
 pub struct Document {
     pub text: String,
     line_starts: Vec<usize>,
@@ -19,12 +20,7 @@ pub struct Document {
 impl Document {
     pub fn new(text: String) -> Self {
         let line_starts = compute_line_starts(&text);
-        Self {
-            text,
-            line_starts,
-            tree: None,
-            cache: None,
-        }
+        Self { text, line_starts, tree: None, cache: None }
     }
 
     pub fn set_text(&mut self, text: String) {
@@ -96,11 +92,7 @@ impl Document {
         let mut matches = detect_all(tree, &self.text);
         matches.sort_by_key(|m| (m.start_byte, m.end_byte));
         let ranges = byte_ranges_to_lsp(&self.text, &matches);
-        matches
-            .into_iter()
-            .zip(ranges)
-            .map(|(m, r)| (r, m))
-            .collect()
+        matches.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect()
     }
 }
 
@@ -123,11 +115,7 @@ fn incremental_color_update(
         } else if m.start_byte >= edit_old_end {
             let new_start = (m.start_byte as isize + delta) as usize;
             let new_end = (m.end_byte as isize + delta) as usize;
-            kept.push(ColorMatch {
-                start_byte: new_start,
-                end_byte: new_end,
-                color: m.color,
-            });
+            kept.push(ColorMatch { start_byte: new_start, end_byte: new_end, color: m.color });
         }
     }
     kept.retain(|m| m.end_byte <= rescan_start || m.start_byte >= rescan_end);
@@ -152,10 +140,7 @@ fn compute_line_starts(text: &str) -> Vec<usize> {
 }
 
 fn lsp_to_point(p: Position) -> Point {
-    Point {
-        row: p.line as usize,
-        column: p.character as usize,
-    }
+    Point { row: p.line as usize, column: p.character as usize }
 }
 
 fn byte_to_point(text: &str, byte: usize) -> Point {
@@ -183,11 +168,8 @@ pub fn position_to_byte(text: &str, line_starts: &[usize], pos: Position) -> usi
         return text.len();
     }
     let line_start = line_starts[line];
-    let line_end = line_starts
-        .get(line + 1)
-        .copied()
-        .map(|n| n.saturating_sub(1))
-        .unwrap_or(text.len());
+    let line_end =
+        line_starts.get(line + 1).copied().map(|n| n.saturating_sub(1)).unwrap_or(text.len());
     let line_slice = &text[line_start..line_end];
 
     let mut col_utf16 = 0u32;
@@ -223,10 +205,7 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
             if b > idx {
                 break;
             }
-            let pos = Position {
-                line,
-                character: col_utf16,
-            };
+            let pos = Position { line, character: col_utf16 };
             if is_start {
                 starts[mi] = pos;
             } else {
@@ -245,10 +224,7 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
     }
     for (b, is_start, mi) in iter {
         debug_assert!(b >= idx);
-        let pos = Position {
-            line,
-            character: col_utf16,
-        };
+        let pos = Position { line, character: col_utf16 };
         if is_start {
             starts[mi] = pos;
         } else {
@@ -256,11 +232,7 @@ pub fn byte_ranges_to_lsp(text: &str, matches: &[ColorMatch]) -> Vec<Range> {
         }
     }
 
-    starts
-        .into_iter()
-        .zip(ends)
-        .map(|(start, end)| Range { start, end })
-        .collect()
+    starts.into_iter().zip(ends).map(|(start, end)| Range { start, end }).collect()
 }
 
 pub fn byte_to_position(text: &str, byte: usize) -> Position {
@@ -280,49 +252,48 @@ pub fn byte_to_position(text: &str, byte: usize) -> Position {
         }
         idx += len;
     }
-    Position {
-        line,
-        character: col_utf16,
-    }
+    Position { line, character: col_utf16 }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct DocumentStore {
     docs: Mutex<HashMap<Url, Document>>,
 }
 
 impl DocumentStore {
+    // TODO(Stream 3): remove once std::Mutex is swapped for parking_lot::Mutex.
+    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn open(&self, uri: Url, text: String) {
         self.docs.lock().unwrap().insert(uri, Document::new(text));
     }
 
+    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn replace(&self, uri: &Url, text: String) {
         if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
             doc.set_text(text);
         }
     }
 
+    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn apply_change(&self, uri: &Url, range: Option<Range>, text: &str) {
         if let Some(doc) = self.docs.lock().unwrap().get_mut(uri) {
             doc.apply_change(range, text);
         }
     }
 
+    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn close(&self, uri: &Url) {
         self.docs.lock().unwrap().remove(uri);
     }
 
+    #[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
     pub fn colors_for(&self, uri: &Url) -> Vec<(Range, ColorMatch)> {
-        self.docs
-            .lock()
-            .unwrap()
-            .get_mut(uri)
-            .map(|d| d.colors())
-            .unwrap_or_default()
+        self.docs.lock().unwrap().get_mut(uri).map(|d| d.colors()).unwrap_or_default()
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::color::Rgba;
@@ -351,10 +322,7 @@ mod tests {
     fn position_to_byte_round_trip() {
         let text = "ab\nc\u{1F600}de\nfg";
         let starts = compute_line_starts(text);
-        let p = Position {
-            line: 1,
-            character: 3,
-        };
+        let p = Position { line: 1, character: 3 };
         let byte = position_to_byte(text, &starts, p);
         assert_eq!(&text[byte..byte + 1], "d");
     }
@@ -383,14 +351,8 @@ mod tests {
         let mut doc = Document::new("let a = Color::WHITE;".to_string());
         assert_eq!(doc.colors().len(), 1);
         let range = Range {
-            start: Position {
-                line: 0,
-                character: 21,
-            },
-            end: Position {
-                line: 0,
-                character: 21,
-            },
+            start: Position { line: 0, character: 21 },
+            end: Position { line: 0, character: 21 },
         };
         doc.apply_change(Some(range), " let b = Color::BLACK;");
         let cs = doc.colors();
@@ -403,14 +365,8 @@ mod tests {
         let cs = doc.colors();
         assert!((cs[0].1.color.r - 1.0).abs() < 0.01);
         let range = Range {
-            start: Position {
-                line: 0,
-                character: 20,
-            },
-            end: Position {
-                line: 0,
-                character: 23,
-            },
+            start: Position { line: 0, character: 20 },
+            end: Position { line: 0, character: 23 },
         };
         doc.apply_change(Some(range), "0.0");
         let cs = doc.colors();
@@ -420,16 +376,9 @@ mod tests {
     #[test]
     fn batch_ranges_match_per_call() {
         let text = "a\nbb\ncccc\nColor::WHITE";
-        let m = ColorMatch {
-            start_byte: 10,
-            end_byte: 22,
-            color: Rgba::WHITE,
-        };
+        let m = ColorMatch { start_byte: 10, end_byte: 22, color: Rgba::WHITE };
         let batched = byte_ranges_to_lsp(text, &[m]);
-        let single = Range {
-            start: byte_to_position(text, 10),
-            end: byte_to_position(text, 22),
-        };
+        let single = Range { start: byte_to_position(text, 10), end: byte_to_position(text, 22) };
         assert_eq!(batched[0], single);
     }
 }

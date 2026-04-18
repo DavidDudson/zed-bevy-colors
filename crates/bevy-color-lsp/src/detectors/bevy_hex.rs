@@ -16,6 +16,7 @@ const QUERY_SRC: &str = r#"
       (string_content) @hex))) @call
 "#;
 
+#[allow(clippy::expect_used)]
 static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_hex query")
 });
@@ -59,16 +60,13 @@ pub fn detect(
             continue;
         }
         if let Some(color) = parse_hex(hex_text) {
-            out.push(ColorMatch {
-                start_byte: call_start,
-                end_byte: call_end,
-                color,
-            });
+            out.push(ColorMatch { start_byte: call_start, end_byte: call_end, color });
         }
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::parser::parse;
