@@ -124,10 +124,21 @@ fn parse_numeric_literal(text: &str) -> Option<f32> {
 }
 
 fn strip_rust_suffix(s: &str) -> &str {
-    for suf in [
-        "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64",
-        "u128", "usize",
-    ] {
+    // Dispatch on the last byte: every Rust integer/float suffix terminates
+    // in one of `2 4 6 8 e`. One char-match lets us skip the 14-probe loop
+    // entirely on any literal that doesn't carry a suffix (common case).
+    let Some(&last) = s.as_bytes().last() else {
+        return s;
+    };
+    let candidates: &[&str] = match last {
+        b'2' => &["f32", "i32", "u32"],
+        b'4' => &["f64", "i64", "u64"],
+        b'6' => &["i16", "u16"],
+        b'8' => &["i8", "u8", "i128", "u128"],
+        b'e' => &["isize", "usize"],
+        _ => return s,
+    };
+    for suf in candidates {
         if let Some(stripped) = s.strip_suffix(suf) {
             return stripped;
         }
