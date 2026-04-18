@@ -279,10 +279,10 @@ mod tests {
     fn hex_four_rgba() {
         // #RGBA short form: each nibble doubled
         let c = parse_hex("#f80f").unwrap();
-        approx(c.r, 1.0);  // 0xff / 255
+        approx(c.r, 1.0); // 0xff / 255
         approx(c.g, 0.533); // 0x88 / 255
-        approx(c.b, 0.0);  // 0x00 / 255
-        approx(c.a, 1.0);  // 0xff / 255
+        approx(c.b, 0.0); // 0x00 / 255
+        approx(c.a, 1.0); // 0xff / 255
     }
 
     // --- linear_to_srgb branches ---

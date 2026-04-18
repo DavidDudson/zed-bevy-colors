@@ -16,7 +16,9 @@
 
 use bevy_color_lsp::color::parse_hex;
 use bevy_color_lsp::detectors::detect_all;
-use bevy_color_lsp::document::{byte_to_position, byte_ranges_to_lsp, position_to_byte, Document, DocumentStore};
+use bevy_color_lsp::document::{
+    byte_ranges_to_lsp, byte_to_position, position_to_byte, Document, DocumentStore,
+};
 use bevy_color_lsp::palette::lookup_named;
 use bevy_color_lsp::parser::parse;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
@@ -353,7 +355,9 @@ fn bench_position_conversions(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(src.len() as u64));
 
         // byte_to_position probes
-        for (label, byte) in [("start", byte_offsets[0]), ("middle", byte_offsets[1]), ("end", byte_offsets[2])] {
+        for (label, byte) in
+            [("start", byte_offsets[0]), ("middle", byte_offsets[1]), ("end", byte_offsets[2])]
+        {
             group.bench_with_input(
                 BenchmarkId::new(format!("byte_to_position/{}", label), n),
                 &(src.clone(), byte),
