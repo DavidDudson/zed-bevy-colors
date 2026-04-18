@@ -1,9 +1,13 @@
-use crate::detectors::{detect_all, ColorMatch};
+use crate::detectors::{detect_all, detect_in_range, ColorMatch};
 use crate::parser::parse_incremental;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tower_lsp::lsp_types::{Position, Range, Url};
 use tree_sitter::{InputEdit, Point, Tree};
+
+/// Bytes of context around an edit to rescan, ensuring partial color
+/// expressions split by the edit boundary are still captured.
+const RESCAN_CONTEXT: usize = 256;
 
 pub struct Document {
     pub text: String,
@@ -38,6 +42,7 @@ impl Document {
         let start_byte = position_to_byte(&self.text, &self.line_starts, range.start);
         let old_end_byte = position_to_byte(&self.text, &self.line_starts, range.end);
         let new_end_byte = start_byte + new_text.len();
+        let delta = new_end_byte as isize - old_end_byte as isize;
 
         let start_position = lsp_to_point(range.start);
         let old_end_position = lsp_to_point(range.end);
@@ -56,7 +61,20 @@ impl Document {
                 new_end_position,
             });
         }
-        self.cache = None;
+
+        let old_cache = self.cache.take();
+        self.tree = parse_incremental(&self.text, self.tree.as_ref());
+        if let (Some(tree), Some(old)) = (self.tree.as_ref(), old_cache) {
+            self.cache = Some(incremental_color_update(
+                &self.text,
+                tree,
+                old,
+                start_byte,
+                old_end_byte,
+                new_end_byte,
+                delta,
+            ));
+        }
     }
 
     pub fn colors(&mut self) -> Vec<(Range, ColorMatch)> {
@@ -69,8 +87,9 @@ impl Document {
     }
 
     fn compute_colors(&mut self) -> Vec<(Range, ColorMatch)> {
-        let new_tree = parse_incremental(&self.text, self.tree.as_ref());
-        self.tree = new_tree;
+        if self.tree.is_none() {
+            self.tree = parse_incremental(&self.text, None);
+        }
         let Some(tree) = self.tree.as_ref() else {
             return Vec::new();
         };
@@ -83,6 +102,43 @@ impl Document {
             .map(|(m, r)| (r, m))
             .collect()
     }
+}
+
+fn incremental_color_update(
+    text: &str,
+    tree: &Tree,
+    old: Vec<(Range, ColorMatch)>,
+    edit_start: usize,
+    edit_old_end: usize,
+    edit_new_end: usize,
+    delta: isize,
+) -> Vec<(Range, ColorMatch)> {
+    let rescan_start = edit_start.saturating_sub(RESCAN_CONTEXT);
+    let rescan_end = (edit_new_end + RESCAN_CONTEXT).min(text.len());
+
+    let mut kept: Vec<ColorMatch> = Vec::with_capacity(old.len());
+    for (_, m) in old {
+        if m.end_byte <= edit_start {
+            kept.push(m);
+        } else if m.start_byte >= edit_old_end {
+            let new_start = (m.start_byte as isize + delta) as usize;
+            let new_end = (m.end_byte as isize + delta) as usize;
+            kept.push(ColorMatch {
+                start_byte: new_start,
+                end_byte: new_end,
+                color: m.color,
+            });
+        }
+    }
+    kept.retain(|m| m.end_byte <= rescan_start || m.start_byte >= rescan_end);
+
+    let mut new_matches = detect_in_range(tree, text, Some(rescan_start..rescan_end));
+    kept.append(&mut new_matches);
+    kept.sort_by_key(|m| (m.start_byte, m.end_byte));
+    kept.dedup_by_key(|m| (m.start_byte, m.end_byte));
+
+    let ranges = byte_ranges_to_lsp(text, &kept);
+    kept.into_iter().zip(ranges).map(|(m, r)| (r, m)).collect()
 }
 
 fn compute_line_starts(text: &str) -> Vec<usize> {

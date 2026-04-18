@@ -1,6 +1,7 @@
 use crate::color::Rgba;
 use crate::detectors::ColorMatch;
 use crate::palette::lookup_named;
+use std::ops::Range;
 use std::sync::LazyLock;
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
@@ -16,8 +17,16 @@ static QUERY: LazyLock<Query> = LazyLock::new(|| {
     Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_const query")
 });
 
-pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
+pub fn detect(
+    tree: &Tree,
+    source: &str,
+    byte_range: Option<Range<usize>>,
+    out: &mut Vec<ColorMatch>,
+) {
     let mut cursor = QueryCursor::new();
+    if let Some(r) = byte_range {
+        cursor.set_byte_range(r);
+    }
     let bytes = source.as_bytes();
 
     let mut matches = cursor.matches(&QUERY, tree.root_node(), bytes);
@@ -67,7 +76,7 @@ mod tests {
     fn detect_str(src: &str) -> Vec<ColorMatch> {
         let tree = parse(src).unwrap();
         let mut out = Vec::new();
-        detect(&tree, src, &mut out);
+        detect(&tree, src, None, &mut out);
         out
     }
 

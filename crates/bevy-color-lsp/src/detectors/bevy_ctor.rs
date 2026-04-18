@@ -1,5 +1,6 @@
 use crate::color::{hsl_to_rgb, hsv_to_rgb, hwb_to_rgb, oklab_to_rgb, oklch_to_rgb, Rgba};
 use crate::detectors::ColorMatch;
+use std::ops::Range;
 use std::sync::LazyLock;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
@@ -29,8 +30,16 @@ const COLOR_TYPES: &[&str] = &[
     "Xyza",
 ];
 
-pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
+pub fn detect(
+    tree: &Tree,
+    source: &str,
+    byte_range: Option<Range<usize>>,
+    out: &mut Vec<ColorMatch>,
+) {
     let mut cursor = QueryCursor::new();
+    if let Some(r) = byte_range {
+        cursor.set_byte_range(r);
+    }
     let bytes = source.as_bytes();
 
     let mut matches = cursor.matches(&QUERY, tree.root_node(), bytes);
@@ -179,7 +188,7 @@ mod tests {
     fn detect_str(src: &str) -> Vec<ColorMatch> {
         let tree = parse(src).unwrap();
         let mut out = Vec::new();
-        detect(&tree, src, &mut out);
+        detect(&tree, src, None, &mut out);
         out
     }
 
