@@ -48,17 +48,31 @@ jobs:
       - name: Format PR comment
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
         run: |
-          {
-            echo '## Bench diff (criterion `--quick`, head vs base)'
-            echo
-            echo '<details><summary>Full output</summary>'
-            echo
-            echo '```'
-            cat bench-output.txt
-            echo '```'
-            echo
-            echo '</details>'
-          } > bench-comment.md
+          # Keep only paragraphs where criterion reported a real
+          # change ("improved" or "regressed"). Drop "No change in
+          # performance detected." noise.
+          changed=$(awk 'BEGIN{RS=""; ORS="\n\n"} /Performance has (improved|regressed)/' bench-output.txt)
+          if [ -z "$changed" ]; then
+            {
+              echo '## Bench diff (criterion `--quick`, head vs base)'
+              echo
+              echo 'No performance changes detected.'
+            } > bench-comment.md
+          else
+            {
+              echo '## Bench diff (criterion `--quick`, head vs base)'
+              echo
+              echo 'Only benches with a significant change are shown.'
+              echo
+              echo '<details open><summary>Changed benches</summary>'
+              echo
+              echo '```'
+              printf '%s\n' "$changed"
+              echo '```'
+              echo
+              echo '</details>'
+            } > bench-comment.md
+          fi
 
       - name: Post comment
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
