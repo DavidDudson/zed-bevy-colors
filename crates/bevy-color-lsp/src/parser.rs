@@ -1,6 +1,11 @@
+use std::cell::RefCell;
 use tree_sitter::{Parser, Tree};
 
-pub fn rust_parser() -> Parser {
+thread_local! {
+    static PARSER: RefCell<Parser> = RefCell::new(make_parser());
+}
+
+fn make_parser() -> Parser {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_rust::LANGUAGE.into())
@@ -9,5 +14,9 @@ pub fn rust_parser() -> Parser {
 }
 
 pub fn parse(source: &str) -> Option<Tree> {
-    rust_parser().parse(source, None)
+    PARSER.with(|cell| cell.borrow_mut().parse(source, None))
+}
+
+pub fn parse_incremental(source: &str, old: Option<&Tree>) -> Option<Tree> {
+    PARSER.with(|cell| cell.borrow_mut().parse(source, old))
 }

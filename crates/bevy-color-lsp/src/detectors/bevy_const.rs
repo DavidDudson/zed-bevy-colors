@@ -1,28 +1,33 @@
 use crate::color::Rgba;
 use crate::detectors::ColorMatch;
 use crate::palette::lookup_named;
+use std::sync::LazyLock;
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
-const QUERY: &str = r#"
+const QUERY_SRC: &str = r#"
 (scoped_identifier
   path: (identifier) @type
-  name: (identifier) @name) @full
+  name: (identifier) @name
+  (#match? @type "^(Color|Srgba|LinearRgba)$")
+  (#match? @name "^[A-Z][A-Z0-9_]*$")) @full
 "#;
 
+static QUERY: LazyLock<Query> = LazyLock::new(|| {
+    Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_const query")
+});
+
 pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
-    let language = tree_sitter_rust::LANGUAGE.into();
-    let query = Query::new(&language, QUERY).expect("compile bevy_const query");
     let mut cursor = QueryCursor::new();
     let bytes = source.as_bytes();
 
-    let mut matches = cursor.matches(&query, tree.root_node(), bytes);
+    let mut matches = cursor.matches(&QUERY, tree.root_node(), bytes);
     while let Some(m) = matches.next() {
         let mut ty = "";
         let mut name = "";
         let mut full_start = 0;
         let mut full_end = 0;
         for cap in m.captures {
-            let cap_name = &query.capture_names()[cap.index as usize];
+            let cap_name = &QUERY.capture_names()[cap.index as usize];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
             match *cap_name {
                 "type" => ty = text,

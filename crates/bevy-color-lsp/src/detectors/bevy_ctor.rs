@@ -1,14 +1,19 @@
 use crate::color::{hsl_to_rgb, hsv_to_rgb, hwb_to_rgb, oklab_to_rgb, oklch_to_rgb, Rgba};
 use crate::detectors::ColorMatch;
+use std::sync::LazyLock;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
-const QUERY: &str = r#"
+const QUERY_SRC: &str = r#"
 (call_expression
   function: (scoped_identifier
     path: (identifier) @type
     name: (identifier) @ctor)
   arguments: (arguments) @args) @call
 "#;
+
+static QUERY: LazyLock<Query> = LazyLock::new(|| {
+    Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_ctor query")
+});
 
 const COLOR_TYPES: &[&str] = &[
     "Color",
@@ -25,19 +30,17 @@ const COLOR_TYPES: &[&str] = &[
 ];
 
 pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
-    let language = tree_sitter_rust::LANGUAGE.into();
-    let query = Query::new(&language, QUERY).expect("compile bevy_ctor query");
     let mut cursor = QueryCursor::new();
     let bytes = source.as_bytes();
 
-    let mut matches = cursor.matches(&query, tree.root_node(), bytes);
+    let mut matches = cursor.matches(&QUERY, tree.root_node(), bytes);
     while let Some(m) = matches.next() {
         let mut ty = "";
         let mut ctor = "";
         let mut args: Option<Node> = None;
         let mut call: Option<Node> = None;
         for cap in m.captures {
-            let name = &query.capture_names()[cap.index as usize];
+            let name = &QUERY.capture_names()[cap.index as usize];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
             match *name {
                 "type" => ty = text,

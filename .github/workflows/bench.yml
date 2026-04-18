@@ -1,0 +1,58 @@
+name: Bench
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Compile benches
+        run: cargo bench -p bevy-color-lsp --no-run
+      - name: Run benches (quick)
+        run: |
+          cargo bench -p bevy-color-lsp --bench pipeline -- \
+            --quick --warm-up-time 1 --measurement-time 3 \
+            --output-format bencher \
+            | tee bench-output.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: criterion-report-${{ github.sha }}
+          path: |
+            target/criterion/**
+            bench-output.txt
+          retention-days: 30
+
+  bench-compare:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Bench base branch
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+          cargo bench -p bevy-color-lsp --bench pipeline -- \
+            --quick --warm-up-time 1 --measurement-time 3 --save-baseline base
+      - name: Bench PR head + compare
+        run: |
+          git checkout ${{ github.event.pull_request.head.sha }}
+          cargo bench -p bevy-color-lsp --bench pipeline -- \
+            --quick --warm-up-time 1 --measurement-time 3 --baseline base \
+            | tee bench-diff.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-diff-${{ github.sha }}
+          path: bench-diff.txt

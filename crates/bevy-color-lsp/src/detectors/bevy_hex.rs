@@ -1,26 +1,31 @@
 use crate::color::parse_hex;
 use crate::detectors::ColorMatch;
+use std::sync::LazyLock;
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
-const QUERY: &str = r#"
+const QUERY_SRC: &str = r#"
 (call_expression
   function: (scoped_identifier
     path: (identifier) @type
-    name: (identifier) @ctor)
+    name: (identifier) @ctor
+    (#match? @type "^(Color|Srgba|LinearRgba)$")
+    (#eq? @ctor "hex"))
   arguments: (arguments
     (string_literal
       (string_content) @hex))) @call
 "#;
 
+static QUERY: LazyLock<Query> = LazyLock::new(|| {
+    Query::new(&tree_sitter_rust::LANGUAGE.into(), QUERY_SRC).expect("compile bevy_hex query")
+});
+
 const HEX_TYPES: &[&str] = &["Color", "Srgba", "LinearRgba"];
 
 pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
-    let language = tree_sitter_rust::LANGUAGE.into();
-    let query = Query::new(&language, QUERY).expect("compile bevy_hex query");
     let mut cursor = QueryCursor::new();
     let bytes = source.as_bytes();
 
-    let mut matches = cursor.matches(&query, tree.root_node(), bytes);
+    let mut matches = cursor.matches(&QUERY, tree.root_node(), bytes);
     while let Some(m) = matches.next() {
         let mut ty = "";
         let mut ctor = "";
@@ -28,7 +33,7 @@ pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
         let mut call_start = 0;
         let mut call_end = 0;
         for cap in m.captures {
-            let cap_name = &query.capture_names()[cap.index as usize];
+            let cap_name = &QUERY.capture_names()[cap.index as usize];
             let text = cap.node.utf8_text(bytes).unwrap_or("");
             match *cap_name {
                 "type" => ty = text,
