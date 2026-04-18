@@ -3,7 +3,7 @@ use zed_extension_api::{
 };
 
 const SERVER_ID: &str = "bevy-color-lsp";
-const REPO: &str = "ddudson/zed-bevy-color";
+const REPO: &str = "DavidDudson/zed-bevy-colors";
 const BIN_NAME: &str = "bevy-color-lsp";
 
 struct BevyColorExtension {

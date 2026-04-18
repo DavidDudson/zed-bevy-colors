@@ -6,8 +6,8 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/ddudson/zed-bevy-color"
+license = "MIT"
+repository = "https://github.com/DavidDudson/zed-bevy-colors"
 authors = ["David Dudson <davidjohndudson@gmail.com>"]
 
 [profile.release]

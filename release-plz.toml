@@ -1,0 +1,30 @@
+[workspace]
+# No crates.io publish — distribute via GitHub release binary + Zed registry.
+publish = false
+# Disable changelog updates globally; opt the lsp crate in below with a root path.
+changelog_update = false
+# Require a PR to be merged before tagging/releasing.
+release_always = false
+pr_name = "chore: release v{{ version }}"
+
+[changelog]
+header = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+"""
+
+[[package]]
+name = "bevy-color-lsp"
+changelog_update = true
+changelog_path = "./CHANGELOG.md"
+git_tag_name = "v{{ version }}"
+git_release_name = "v{{ version }}"
+
+# Wasm extension ships via Zed registry, not tagged independently —
+# but its workspace version will still bump alongside the lsp crate.
+[[package]]
+name = "zed-bevy-color-extension"
+release = false

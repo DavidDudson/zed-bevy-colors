@@ -4,3 +4,8 @@ Cargo.lock.bak
 .DS_Store
 *.wasm
 extension.wasm
+
+# nix / direnv
+.direnv/
+result
+result-*
