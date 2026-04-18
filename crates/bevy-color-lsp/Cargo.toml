@@ -1,0 +1,25 @@
+[package]
+name = "bevy-color-lsp"
+description = "LSP server reporting Bevy Color literals via textDocument/documentColor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "bevy-color-lsp"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["rt-multi-thread", "io-std", "macros", "sync"] }
+tree-sitter = "0.26"
+tree-sitter-rust = "0.24"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"

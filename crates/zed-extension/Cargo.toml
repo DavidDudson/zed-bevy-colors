@@ -1,0 +1,15 @@
+[package]
+name = "zed-bevy-color-extension"
+description = "Zed extension wrapper for bevy-color-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7"

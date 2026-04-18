@@ -1,0 +1,11 @@
+id = "bevy-color"
+name = "Bevy Color"
+description = "Inline color swatches for Bevy Color literals via LSP textDocument/documentColor"
+version = "0.1.0"
+schema_version = 1
+authors = ["David Dudson <davidjohndudson@gmail.com>"]
+repository = "https://github.com/ddudson/zed-bevy-color"
+
+[language_servers.bevy-color-lsp]
+name = "Bevy Color LSP"
+languages = ["Rust"]

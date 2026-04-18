@@ -1,0 +1,88 @@
+use crate::color::parse_hex;
+use crate::detectors::ColorMatch;
+use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
+
+const QUERY: &str = r#"
+(call_expression
+  function: (scoped_identifier
+    path: (identifier) @type
+    name: (identifier) @ctor)
+  arguments: (arguments
+    (string_literal
+      (string_content) @hex))) @call
+"#;
+
+const HEX_TYPES: &[&str] = &["Color", "Srgba", "LinearRgba"];
+
+pub fn detect(tree: &Tree, source: &str, out: &mut Vec<ColorMatch>) {
+    let language = tree_sitter_rust::LANGUAGE.into();
+    let query = Query::new(&language, QUERY).expect("compile bevy_hex query");
+    let mut cursor = QueryCursor::new();
+    let bytes = source.as_bytes();
+
+    let mut matches = cursor.matches(&query, tree.root_node(), bytes);
+    while let Some(m) = matches.next() {
+        let mut ty = "";
+        let mut ctor = "";
+        let mut hex_text = "";
+        let mut call_start = 0;
+        let mut call_end = 0;
+        for cap in m.captures {
+            let cap_name = &query.capture_names()[cap.index as usize];
+            let text = cap.node.utf8_text(bytes).unwrap_or("");
+            match *cap_name {
+                "type" => ty = text,
+                "ctor" => ctor = text,
+                "hex" => hex_text = text,
+                "call" => {
+                    call_start = cap.node.start_byte();
+                    call_end = cap.node.end_byte();
+                }
+                _ => {}
+            }
+        }
+        if !HEX_TYPES.contains(&ty) || ctor != "hex" {
+            continue;
+        }
+        if let Some(color) = parse_hex(hex_text) {
+            out.push(ColorMatch {
+                start_byte: call_start,
+                end_byte: call_end,
+                color,
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::parse;
+
+    fn detect_str(src: &str) -> Vec<ColorMatch> {
+        let tree = parse(src).unwrap();
+        let mut out = Vec::new();
+        detect(&tree, src, &mut out);
+        out
+    }
+
+    #[test]
+    fn srgba_hex_six() {
+        let m = detect_str(r#"Srgba::hex("FF8800")"#);
+        assert_eq!(m.len(), 1);
+        assert!((m[0].color.r - 1.0).abs() < 0.01);
+        assert!((m[0].color.g - 0.533).abs() < 0.01);
+    }
+
+    #[test]
+    fn color_hex_with_hash() {
+        let m = detect_str(r##"Color::hex("#abc")"##);
+        assert_eq!(m.len(), 1);
+    }
+
+    #[test]
+    fn ignores_non_hex_ctor() {
+        let m = detect_str(r#"Color::srgb("FF8800")"#);
+        assert!(m.is_empty());
+    }
+}
