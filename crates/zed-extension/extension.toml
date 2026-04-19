@@ -1,7 +1,7 @@
 id = "bevy-color"
 name = "Bevy Color"
 description = "Inline color swatches for Bevy Color literals via LSP textDocument/documentColor"
-version = "0.1.0"
+version = "0.1.1"
 schema_version = 1
 authors = ["David Dudson <davidjohndudson@gmail.com>"]
 repository = "https://github.com/DavidDudson/zed-bevy-colors"
