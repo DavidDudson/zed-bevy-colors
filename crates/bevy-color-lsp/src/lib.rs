@@ -8,8 +8,8 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`color`] | `Rgba` type + color-space conversion helpers |
-//! | [`palette`] | Named color tables (CSS, Tailwind, basic) |
+//! | [`color`] | `Rgba` type + color-space conversion helpers (built on [`palette`]) |
+//! | [`named_colors`] | Named color tables (CSS, Tailwind, basic) |
 //! | [`parser`] | Tree-sitter parser wrappers |
 //! | [`detectors`] | Pattern matchers that produce [`detectors::ColorMatch`] values |
 //! | [`document`] | Per-document text + incremental color cache |
@@ -39,7 +39,7 @@ pub mod color;
 pub mod detectors;
 pub mod document;
 pub mod error;
+pub mod named_colors;
 pub mod num;
-pub mod palette;
 pub mod parser;
 pub mod server;
