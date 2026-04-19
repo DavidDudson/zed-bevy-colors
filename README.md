@@ -28,8 +28,17 @@ users can skip this** — the extension auto-downloads the right
 prebuilt for your platform on first activation. All other editors
 need the binary on `$PATH`.
 
-**Prebuilt binary (recommended)** — grab the asset for your platform
-from the [latest release](https://github.com/DavidDudson/zed-bevy-colors/releases/latest):
+**From crates.io (recommended for Rust users)**:
+
+```sh
+cargo install bevy-color-lsp
+```
+
+This installs `bevy-color-lsp` into `~/.cargo/bin/` (which `rustup`
+adds to `$PATH`). Builds from source — needs a Rust toolchain.
+
+**Prebuilt binary (no Rust toolchain)** — grab the asset for your
+platform from the [latest release](https://github.com/DavidDudson/zed-bevy-colors/releases/latest):
 
 | OS / arch | Asset |
 |---|---|
@@ -45,25 +54,23 @@ directory on your `$PATH` — e.g. `~/.local/bin`, `/usr/local/bin`,
 
 ```sh
 # Linux/macOS one-liner (substitute the asset for your platform)
+mkdir -p ~/.local/bin
 curl -L https://github.com/DavidDudson/zed-bevy-colors/releases/latest/download/bevy-color-lsp-x86_64-unknown-linux-gnu.tar.gz \
   | tar -xz -C ~/.local/bin
 ```
 
-**From source (Rust toolchain required)** — clone the repo:
+**From a clone (development builds)**:
 
 ```sh
 git clone https://github.com/DavidDudson/zed-bevy-colors
 cargo install --path zed-bevy-colors/crates/bevy-color-lsp
 ```
 
-This installs `bevy-color-lsp` into `~/.cargo/bin/` (which `rustup`
-adds to your `$PATH`).
-
 **Verify** the binary is on `$PATH`:
 
 ```sh
 command -v bevy-color-lsp   # POSIX (Linux/macOS) — prints the resolved path
-where bevy-color-lsp        # Windows
+where.exe bevy-color-lsp    # Windows (use `where.exe` explicitly; in PowerShell, plain `where` aliases `Where-Object`)
 ```
 
 (The binary itself takes no flags — it speaks LSP over stdio. Don't
@@ -128,10 +135,14 @@ Helix and check `~/.cache/helix/helix.log`.
 
 #### Neovim (built-in LSP)
 
-Requires a Neovim version + plugin combination that renders
-`textDocument/documentColor` results. Plugins: [`mason-lspconfig`](https://github.com/williamboman/mason-lspconfig.nvim)
-+ [`document-color.nvim`](https://github.com/mrshmllow/document-color.nvim)
-or any equivalent that consumes `textDocument/documentColor`.
+Requires a Neovim version + plugin combination that supports
+`textDocument/documentColor`: [`nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig)
+to register the server, plus a renderer such as
+[`document-color.nvim`](https://github.com/mrshmllow/document-color.nvim)
+(or any equivalent plugin that consumes `textDocument/documentColor`).
+[`mason.nvim`](https://github.com/williamboman/mason.nvim) and
+[`mason-lspconfig.nvim`](https://github.com/williamboman/mason-lspconfig.nvim)
+are optional tooling for installing/managing LSP binaries.
 
 Register the server with `nvim-lspconfig` (manual config since this
 LSP is not in the lspconfig registry):
