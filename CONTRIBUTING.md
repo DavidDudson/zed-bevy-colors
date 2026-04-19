@@ -110,9 +110,9 @@ Supply-chain audit via `cargo deny check` (`deny.toml`) runs in
 [codecov.io](https://codecov.io/gh/DavidDudson/zed-bevy-colors). Two
 files are **intentionally excluded** from the coverage percentage:
 
-- `crates/bevy-color-lsp/src/palette.rs` — ~350 lines of CSS + Tailwind
-  lookup tables. Dispatch is smoke-tested; per-entry tests would be
-  noise.
+- `crates/bevy-color-lsp/src/named_colors.rs` — ~350 lines of CSS +
+  Tailwind lookup tables. Dispatch is smoke-tested; per-entry tests
+  would be noise.
 - `crates/zed-extension/` — WASM shim exercised only through Zed's
   runtime; there is no `cargo test` path.
 

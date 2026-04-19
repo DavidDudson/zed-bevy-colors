@@ -64,7 +64,7 @@ impl Rgba {
     }
 }
 
-fn from_srgb(s: Srgb, a: f32) -> Rgba {
+const fn from_srgb(s: Srgb, a: f32) -> Rgba {
     Rgba::new(s.red, s.green, s.blue, a)
 }
 
