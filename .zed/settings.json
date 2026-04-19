@@ -1,0 +1,9 @@
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "linkedProjects": ["crates/bevy-color-lsp/Cargo.toml"]
+      }
+    }
+  }
+}
