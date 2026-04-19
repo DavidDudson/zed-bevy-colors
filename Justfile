@@ -31,16 +31,16 @@ deny:
 docs:
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
-# Line/region coverage. Skips data tables (palette.rs) and WASM shim.
+# Line/region coverage. Skips data tables (named_colors.rs) and WASM shim.
 # Needs `cargo-llvm-cov` + llvm-tools; the nix devshell provides both.
 coverage:
     cargo llvm-cov --workspace --summary-only \
-        --ignore-filename-regex 'palette\.rs|zed-extension'
+        --ignore-filename-regex 'named_colors\.rs|zed-extension'
 
 # Emit lcov.info for upload (codecov).
 coverage-lcov:
     cargo llvm-cov --workspace --lcov --output-path lcov.info \
-        --ignore-filename-regex 'palette\.rs|zed-extension'
+        --ignore-filename-regex 'named_colors\.rs|zed-extension'
 
 # Full pre-push gate — mirrors lint.yml + ci.yml
 ci: fmt-check clippy test deny docs wasm

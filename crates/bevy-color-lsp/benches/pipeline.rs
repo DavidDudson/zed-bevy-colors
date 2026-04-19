@@ -20,7 +20,7 @@ use bevy_color_lsp::{
     color::parse_hex,
     detectors::detect_all,
     document::{byte_ranges_to_lsp, byte_to_position, position_to_byte, Document, DocumentStore},
-    palette::lookup_named,
+    named_colors::lookup_named,
     parser::parse,
 };
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};

@@ -4,7 +4,7 @@ use std::{ops::Range, sync::LazyLock};
 
 use tree_sitter::{Query, QueryCursor, StreamingIterator, Tree};
 
-use crate::{detectors::ColorMatch, num::u32_to_usize, palette::lookup_palette};
+use crate::{detectors::ColorMatch, named_colors::lookup_palette, num::u32_to_usize};
 
 const QUERY_SRC: &str = r#"
 (scoped_identifier

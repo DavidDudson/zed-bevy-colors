@@ -69,13 +69,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       # Excludes:
-      # - `palette.rs`: ~350 lines of css/tailwind lookup tables; covered
-      #   by dispatch smoke tests, per-entry tests are noise.
+      # - `named_colors.rs`: ~350 lines of css/tailwind lookup tables;
+      #   covered by dispatch smoke tests, per-entry tests are noise.
       # - `zed-extension`: WASM shim exercised only via Zed runtime; no
       #   `cargo test` path.
       - run: |
           cargo llvm-cov --workspace --lcov --output-path lcov.info \
-            --ignore-filename-regex 'palette\.rs|zed-extension'
+            --ignore-filename-regex 'named_colors\.rs|zed-extension'
       - uses: codecov/codecov-action@v6
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
         with:

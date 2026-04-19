@@ -1,6 +1,10 @@
 //! `Rgba` color type and color-space conversion helpers.
+//!
+//! Internally backed by the [`palette`] crate; this module exposes a
+//! narrow `f32`-tuple façade so detectors can stay agnostic of the
+//! conversion library.
 
-use crate::num::f32_to_u32_floor_clamped;
+use palette::{convert::FromColorUnclamped, FromColor, Hsl, Hsv, Hwb, LinSrgb, Oklab, Oklch, Srgb};
 
 /// sRGB color with straight (non-premultiplied) alpha; all components in `[0.0, 1.0]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,9 +45,11 @@ impl Rgba {
     }
 
     /// Construct from linear-light RGB components, applying the sRGB transfer curve.
+    /// Channels are clamped to `[0.0, 1.0]` after conversion.
     #[must_use]
     pub fn from_linear(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self::new(linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b), a)
+        let srgb: Srgb = LinSrgb::new(r, g, b).into();
+        from_srgb(srgb, a).clamped()
     }
 
     /// Return a copy with all channels clamped to `[0.0, 1.0]`.
@@ -58,16 +64,8 @@ impl Rgba {
     }
 }
 
-fn linear_to_srgb(c: f32) -> f32 {
-    if c <= 0.0 {
-        0.0
-    } else if c <= 0.003_130_8 {
-        c * 12.92
-    } else if c < 1.0 {
-        1.055 * c.powf(1.0 / 2.4) - 0.055
-    } else {
-        1.0
-    }
+const fn from_srgb(s: Srgb, a: f32) -> Rgba {
+    Rgba::new(s.red, s.green, s.blue, a)
 }
 
 /// Parse a hex color string, returning `None` on invalid input.
@@ -78,11 +76,7 @@ fn linear_to_srgb(c: f32) -> f32 {
 pub fn parse_hex(s: &str) -> Option<Rgba> {
     let s = s.trim_start_matches('#');
     let bytes: Vec<u8> = match s.len() {
-        3 => s
-            .chars()
-            .map(|c| u8::from_str_radix(&c.to_string().repeat(2), 16).ok())
-            .collect::<Option<_>>()?,
-        4 => s
+        3 | 4 => s
             .chars()
             .map(|c| u8::from_str_radix(&c.to_string().repeat(2), 16).ok())
             .collect::<Option<_>>()?,
@@ -99,66 +93,24 @@ pub fn parse_hex(s: &str) -> Option<Rgba> {
     }
 }
 
-/// Convert HSL to sRGB. `h` in degrees `[0, 360)`, `s` and `l` in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+/// Convert HSL to sRGB. `h` in degrees, `s` and `l` in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
 #[must_use]
 pub fn hsl_to_rgb(h: f32, s: f32, l: f32, a: f32) -> Rgba {
-    let h = ((h % 360.0) + 360.0) % 360.0 / 360.0;
-    let s = s.clamp(0.0, 1.0);
-    let l = l.clamp(0.0, 1.0);
-    if s == 0.0 {
-        return Rgba::new(l, l, l, a);
-    }
-    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
-    let p = 2.0 * l - q;
-    Rgba::new(
-        hue_to_rgb(p, q, h + 1.0 / 3.0),
-        hue_to_rgb(p, q, h),
-        hue_to_rgb(p, q, h - 1.0 / 3.0),
-        a,
-    )
+    let srgb = Srgb::from_color(Hsl::new(h, s.clamp(0.0, 1.0), l.clamp(0.0, 1.0)));
+    from_srgb(srgb, a).clamped()
 }
 
-fn hue_to_rgb(p: f32, q: f32, mut t: f32) -> f32 {
-    if t < 0.0 {
-        t += 1.0;
-    }
-    if t > 1.0 {
-        t -= 1.0;
-    }
-    if t < 1.0 / 6.0 {
-        return p + (q - p) * 6.0 * t;
-    }
-    if t < 0.5 {
-        return q;
-    }
-    if t < 2.0 / 3.0 {
-        return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
-    }
-    p
-}
-
-/// Convert HSV to sRGB. `h` in degrees `[0, 360)`, `s` and `v` in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+/// Convert HSV to sRGB. `h` in degrees, `s` and `v` in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
 #[must_use]
 pub fn hsv_to_rgb(h: f32, s: f32, v: f32, a: f32) -> Rgba {
-    let h = ((h % 360.0) + 360.0) % 360.0;
-    let s = s.clamp(0.0, 1.0);
-    let v = v.clamp(0.0, 1.0);
-    let c = v * s;
-    let hp = h / 60.0;
-    let x = c * (1.0 - (hp % 2.0 - 1.0).abs());
-    let (r1, g1, b1) = match f32_to_u32_floor_clamped(hp, 6) {
-        0 => (c, x, 0.0),
-        1 => (x, c, 0.0),
-        2 => (0.0, c, x),
-        3 => (0.0, x, c),
-        4 => (x, 0.0, c),
-        _ => (c, 0.0, x),
-    };
-    let m = v - c;
-    Rgba::new(r1 + m, g1 + m, b1 + m, a)
+    let srgb = Srgb::from_color(Hsv::new(h, s.clamp(0.0, 1.0), v.clamp(0.0, 1.0)));
+    from_srgb(srgb, a).clamped()
 }
 
-/// Convert HWB to sRGB. `h` in degrees `[0, 360)`, `w` and `b` (whiteness/blackness) in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+/// Convert HWB to sRGB. `h` in degrees, `w` and `b` (whiteness/blackness) in `[0.0, 1.0]`, `a` in `[0.0, 1.0]`.
+///
+/// When `w + b >= 1`, the result is the achromatic gray `w / (w + b)`
+/// per the CSS Color Module 4 spec; this matches `bevy_color::Hwba`.
 #[must_use]
 pub fn hwb_to_rgb(h: f32, w: f32, b: f32, a: f32) -> Rgba {
     let w = w.clamp(0.0, 1.0);
@@ -167,30 +119,26 @@ pub fn hwb_to_rgb(h: f32, w: f32, b: f32, a: f32) -> Rgba {
         let g = w / (w + b);
         return Rgba::new(g, g, g, a);
     }
-    let rgb = hsv_to_rgb(h, 1.0, 1.0, a);
-    Rgba::new(rgb.r * (1.0 - w - b) + w, rgb.g * (1.0 - w - b) + w, rgb.b * (1.0 - w - b) + w, a)
+    let srgb = Srgb::from_color(Hwb::new(h, w, b));
+    from_srgb(srgb, a).clamped()
 }
 
 /// Convert Oklab to sRGB. `l` in `[0.0, 1.0]`, `a_chan` and `b_chan` roughly in `[-0.4, 0.4]`, `alpha` in `[0.0, 1.0]`.
 #[must_use]
 pub fn oklab_to_rgb(l: f32, a_chan: f32, b_chan: f32, alpha: f32) -> Rgba {
-    let l_ = l + 0.396_337_78 * a_chan + 0.215_803_76 * b_chan;
-    let m_ = l - 0.105_561_346 * a_chan - 0.063_854_17 * b_chan;
-    let s_ = l - 0.089_484_18 * a_chan - 1.291_485_5 * b_chan;
-    let l3 = l_ * l_ * l_;
-    let m3 = m_ * m_ * m_;
-    let s3 = s_ * s_ * s_;
-    let lr = 4.076_741_7 * l3 - 3.307_711_6 * m3 + 0.230_969_94 * s3;
-    let lg = -1.268_438 * l3 + 2.609_757_4 * m3 - 0.341_319_38 * s3;
-    let lb = -0.004_196_086_3 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3;
-    Rgba::from_linear(lr, lg, lb, alpha)
+    // Use unclamped path to mirror Bevy's behaviour for out-of-gamut Oklab
+    // values, then clamp the resulting sRGB triple before display.
+    let lin = LinSrgb::from_color_unclamped(Oklab::new(l, a_chan, b_chan));
+    let srgb: Srgb = lin.into();
+    from_srgb(srgb, alpha).clamped()
 }
 
 /// Convert Oklch to sRGB. `l` in `[0.0, 1.0]`, `c` (chroma) ≥ 0, `h` (hue) in degrees, `a` in `[0.0, 1.0]`.
 #[must_use]
 pub fn oklch_to_rgb(l: f32, c: f32, h: f32, a: f32) -> Rgba {
-    let h_rad = h.to_radians();
-    oklab_to_rgb(l, c * h_rad.cos(), c * h_rad.sin(), a)
+    let lin = LinSrgb::from_color_unclamped(Oklch::new(l, c, h));
+    let srgb: Srgb = lin.into();
+    from_srgb(srgb, a).clamped()
 }
 
 #[cfg(test)]
@@ -285,11 +233,11 @@ mod tests {
         approx(c.a, 1.0); // 0xff / 255
     }
 
-    // --- linear_to_srgb branches ---
+    // --- linear → sRGB transfer curve (clamping behaviour) ---
 
     #[test]
     fn linear_to_srgb_negative_clamps_to_zero() {
-        // c <= 0.0 branch
+        // Negative linear input clamps to 0 after conversion.
         let c = Rgba::from_linear(-1.0, 0.0, 0.0, 1.0);
         approx(c.r, 0.0);
         approx(c.g, 0.0);
@@ -297,14 +245,14 @@ mod tests {
 
     #[test]
     fn linear_to_srgb_small_value() {
-        // c <= 0.003_130_8 branch: sRGB linear segment
+        // Linear segment of the sRGB curve: c <= 0.0031308 → c * 12.92
         let c = Rgba::from_linear(0.001, 0.0, 0.0, 1.0);
         approx(c.r, 0.001 * 12.92);
     }
 
     #[test]
     fn linear_to_srgb_mid_value() {
-        // 0.003_130_8 < c < 1.0 branch: power curve
+        // Power segment of the sRGB curve.
         let c = Rgba::from_linear(0.5, 0.0, 0.0, 1.0);
         let expected = 1.055f32 * 0.5f32.powf(1.0 / 2.4) - 0.055;
         approx(c.r, expected);
@@ -321,7 +269,7 @@ mod tests {
         approx(c.a, 1.0);
     }
 
-    // --- hsl_to_rgb: achromatic (s == 0) and l >= 0.5 branches ---
+    // --- HSL achromatic + high-lightness paths ---
 
     #[test]
     fn hsl_achromatic() {
@@ -334,27 +282,23 @@ mod tests {
 
     #[test]
     fn hsl_high_lightness() {
-        // l >= 0.5 branch for q computation
-        let c = hsl_to_rgb(240.0, 1.0, 0.75, 1.0); // bright blue
+        // bright blue
+        let c = hsl_to_rgb(240.0, 1.0, 0.75, 1.0);
         approx(c.r, 0.5);
         approx(c.g, 0.5);
         approx(c.b, 1.0);
     }
 
-    // --- hue_to_rgb all four t branches ---
-    // hsl_to_rgb exercises hue_to_rgb indirectly; these cases hit the
-    // t < 0 and t > 1 normalisation paths and the final p fallthrough.
-
     #[test]
-    fn hue_to_rgb_all_branches() {
-        // h=300° (magenta): hits t<0 (blue channel) and t>1 corrections
+    fn hsl_magenta_wraparound() {
+        // h=300° (magenta): hue arithmetic wraps cleanly through palette.
         let c = hsl_to_rgb(300.0, 1.0, 0.5, 1.0);
         approx(c.r, 1.0);
         approx(c.g, 0.0);
         approx(c.b, 1.0);
     }
 
-    // --- hwb_to_rgb gray path ---
+    // --- HWB gray + chromatic ---
 
     #[test]
     fn hwb_gray_path() {
@@ -379,9 +323,7 @@ mod tests {
 
     #[test]
     fn oklab_neutral_gray() {
-        // l=0.5, a=0, b=0 => near-gray
         let c = oklab_to_rgb(0.5, 0.0, 0.0, 1.0);
-        // not testing exact value — just that r ≈ g ≈ b and in [0,1]
         assert!((c.r - c.g).abs() < 0.05, "r≈g for neutral oklab");
         assert!((c.g - c.b).abs() < 0.05, "g≈b for neutral oklab");
         assert!(c.a > 0.99);
@@ -389,14 +331,13 @@ mod tests {
 
     #[test]
     fn oklch_zero_chroma_is_gray() {
-        // c=0 => same as neutral oklab
         let c = oklch_to_rgb(0.5, 0.0, 0.0, 1.0);
         assert!((c.r - c.g).abs() < 0.05);
         assert!((c.g - c.b).abs() < 0.05);
         assert!(c.a > 0.99);
     }
 
-    // --- hsv_to_rgb: hit all match arms via sector coverage ---
+    // --- HSV sectors ---
 
     #[test]
     fn hsv_sectors() {
