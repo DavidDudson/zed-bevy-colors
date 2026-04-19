@@ -27,6 +27,9 @@ git_release_name = "v{{ version }}"
 
 # Wasm extension ships via Zed registry, not tagged independently —
 # but its workspace version will still bump alongside the lsp crate.
+# `publish = false` mirrors the same setting in its own Cargo.toml;
+# release-plz validates the two must agree.
 [[package]]
 name = "zed-bevy-color-extension"
 release = false
+publish = false
