@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+# `wasm32-wasip2`-only cdylib; distributed via the Zed extensions
+# registry, not crates.io.
+publish = false
 
 [lib]
 path = "src/lib.rs"

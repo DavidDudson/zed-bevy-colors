@@ -188,11 +188,17 @@ Fully automated via [release-plz](https://release-plz.dev):
    to the release.
 5. The Zed extension resolves to that release's binary on first use.
 
-### Required secret
+### Required secrets
 
-`RELEASE_PLZ_TOKEN` — a PAT with `contents: write` +
-`pull-requests: write`. Required because the default `GITHUB_TOKEN`
-cannot trigger `release.yml` from tags it created.
+- `RELEASE_PLZ_TOKEN` — a PAT with `contents: write` +
+  `pull-requests: write`. Required because the default `GITHUB_TOKEN`
+  cannot trigger `release.yml` from tags it created.
+- `CARGO_REGISTRY_TOKEN` — a crates.io API token with the
+  `publish-update` scope (generate at
+  https://crates.io/settings/tokens). Required for the `release` job
+  in `release-plz.yml` to `cargo publish` `bevy-color-lsp` on tag.
+  The `zed-bevy-color-extension` crate sets `publish = false` in its
+  own `Cargo.toml` and is skipped automatically.
 
 ## Publishing to the Zed extensions registry
 

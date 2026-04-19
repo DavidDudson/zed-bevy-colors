@@ -6,6 +6,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+homepage = "https://github.com/DavidDudson/zed-bevy-colors"
+documentation = "https://docs.rs/bevy-color-lsp"
+readme = "../../README.md"
+keywords = ["bevy", "color", "lsp", "language-server", "tree-sitter"]
+categories = ["development-tools", "command-line-utilities"]
 
 [[bin]]
 name = "bevy-color-lsp"

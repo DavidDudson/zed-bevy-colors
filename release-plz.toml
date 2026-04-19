@@ -1,6 +1,8 @@
 [workspace]
-# No crates.io publish — distribute via GitHub release binary + Zed registry.
-publish = false
+# crates.io publish is enabled at the workspace level; the WASM extension
+# crate opts out via `publish = false` in its own Cargo.toml because
+# `wasm32-wasip2`-only crates have no useful crates.io home.
+publish = true
 # Disable changelog updates globally; opt the lsp crate in below with a root path.
 changelog_update = false
 # Require a PR to be merged before tagging/releasing.
