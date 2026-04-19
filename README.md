@@ -21,20 +21,76 @@ prebuilt server binary on first use.
 
 ## For users
 
-### Install (Zed)
+### Install the LSP server
+
+Three ways to get the `bevy-color-lsp` binary on your system. **Zed
+users can skip this** — the extension auto-downloads the right
+prebuilt for your platform on first activation. All other editors
+need the binary on `$PATH`.
+
+**Prebuilt binary (recommended)** — grab the asset for your platform
+from the [latest release](https://github.com/DavidDudson/zed-bevy-colors/releases/latest):
+
+| OS / arch | Asset |
+|---|---|
+| Linux x86_64 | `bevy-color-lsp-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux aarch64 | `bevy-color-lsp-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS Intel | `bevy-color-lsp-x86_64-apple-darwin.tar.gz` |
+| macOS Apple Silicon | `bevy-color-lsp-aarch64-apple-darwin.tar.gz` |
+| Windows x86_64 | `bevy-color-lsp-x86_64-pc-windows-msvc.zip` |
+
+Extract and drop `bevy-color-lsp` (or `bevy-color-lsp.exe`) into a
+directory on your `$PATH` — e.g. `~/.local/bin`, `/usr/local/bin`,
+`%LOCALAPPDATA%\Microsoft\WinGet\Links`.
+
+```sh
+# Linux/macOS one-liner (substitute the asset for your platform)
+curl -L https://github.com/DavidDudson/zed-bevy-colors/releases/latest/download/bevy-color-lsp-x86_64-unknown-linux-gnu.tar.gz \
+  | tar -xz -C ~/.local/bin
+```
+
+**From source (Rust toolchain required)** — clone the repo:
+
+```sh
+git clone https://github.com/DavidDudson/zed-bevy-colors
+cargo install --path zed-bevy-colors/crates/bevy-color-lsp
+```
+
+This installs `bevy-color-lsp` into `~/.cargo/bin/` (which `rustup`
+adds to your `$PATH`).
+
+**Verify** the binary is on `$PATH`:
+
+```sh
+command -v bevy-color-lsp   # POSIX (Linux/macOS) — prints the resolved path
+where bevy-color-lsp        # Windows
+```
+
+(The binary itself takes no flags — it speaks LSP over stdio. Don't
+run it standalone; your editor invokes it.)
+
+### Editor setup
+
+#### Zed
 
 Once published to the Zed extensions registry:
 
-> Extensions → search "Bevy Color" → Install
+> Extensions (`zed: extensions`) → search **Bevy Color** → Install
 
-Requires a recent Zed release (extension uses `zed_extension_api 0.7`;
-older Zed versions will refuse to load it). See the [Zed extension
-compatibility table](https://zed.dev/docs/extensions/developing-extensions)
+The extension downloads the prebuilt server binary on first use — no
+separate `cargo install` step needed. Requires a recent Zed release
+(extension uses `zed_extension_api 0.7`; older Zed versions will
+refuse to load it). See the [Zed extension compatibility table](https://zed.dev/docs/extensions/developing-extensions)
 for the exact floor.
 
-### Configure swatch rendering
+**Pre-registry / dev install:** clone this repo, then in Zed run
+`zed: install dev extension` and select `crates/zed-extension/`. The
+dev extension expects `bevy-color-lsp` on `$PATH` (it does **not**
+download a binary in dev mode), so install the server first
+(`cargo install --path crates/bevy-color-lsp`).
 
-Zed setting `lsp_document_colors` controls how swatches appear:
+**Swatch rendering** is controlled by Zed's `lsp_document_colors`
+setting. Edit your `settings.json` (`zed: open settings`):
 
 ```jsonc
 {
@@ -45,15 +101,67 @@ Zed setting `lsp_document_colors` controls how swatches appear:
 }
 ```
 
-### Other editors
+#### Helix
 
-The LSP server is editor-agnostic. Use it from VS Code (any LSP plugin),
-Helix, Neovim, etc.
+Requires Helix with [PR #12308](https://github.com/helix-editor/helix/pull/12308)
+included (LSP `documentColor` support). This shipped after Helix
+24.07 — use a current release or build from `master`.
 
-```sh
-cargo install --path crates/bevy-color-lsp
-bevy-color-lsp   # speaks LSP over stdio
+Install the server (see above), then add to your
+`~/.config/helix/languages.toml`:
+
+```toml
+[language-server.bevy-color-lsp]
+command = "bevy-color-lsp"
+
+[[language]]
+name = "rust"
+language-servers = ["rust-analyzer", "bevy-color-lsp"]
 ```
+
+Open a Rust file containing a Bevy `Color` literal — Helix renders
+the inline swatches automatically; no further config required.
+
+If you want to verify the server is being invoked, set
+`BEVY_COLOR_LSP_LOG=debug` (see [Logging](#logging)) before launching
+Helix and check `~/.cache/helix/helix.log`.
+
+#### Neovim (built-in LSP)
+
+Requires a Neovim version + plugin combination that renders
+`textDocument/documentColor` results. Plugins: [`mason-lspconfig`](https://github.com/williamboman/mason-lspconfig.nvim)
++ [`document-color.nvim`](https://github.com/mrshmllow/document-color.nvim)
+or any equivalent that consumes `textDocument/documentColor`.
+
+Register the server with `nvim-lspconfig` (manual config since this
+LSP is not in the lspconfig registry):
+
+```lua
+local configs = require("lspconfig.configs")
+local lspconfig = require("lspconfig")
+
+if not configs.bevy_color_lsp then
+  configs.bevy_color_lsp = {
+    default_config = {
+      cmd = { "bevy-color-lsp" },
+      filetypes = { "rust" },
+      root_dir = lspconfig.util.root_pattern("Cargo.toml"),
+      settings = {},
+    },
+  }
+end
+
+lspconfig.bevy_color_lsp.setup({})
+```
+
+Then attach a documentColor renderer (e.g.
+`require("document-color").setup{}`).
+
+#### Other LSP clients
+
+Any editor that speaks LSP and renders `textDocument/documentColor`
+will work. Point the client at the `bevy-color-lsp` binary; it speaks
+LSP over stdio with no command-line arguments.
 
 ### Logging
 
